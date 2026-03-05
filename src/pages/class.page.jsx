@@ -1,4 +1,3 @@
-// src/pages/class.page.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -269,10 +268,6 @@ const ClassPage = () => {
       alert("className, grade, subject are required");
       return;
     }
-    if (!form.teacherIds || form.teacherIds.length === 0) {
-      alert("Please select at least one teacher");
-      return;
-    }
 
     try {
       await createClass({
@@ -294,10 +289,6 @@ const ClassPage = () => {
     if (!classId) return;
     if (!form.className || !form.gradeId || !form.subjectId) {
       alert("className, grade, subject are required");
-      return;
-    }
-    if (!form.teacherIds || form.teacherIds.length === 0) {
-      alert("Please select at least one teacher");
       return;
     }
 
@@ -628,7 +619,8 @@ const ClassPage = () => {
                     ))}
                   </select>
                   <div className="mt-1 text-[11px] text-gray-500">
-                    Hold Ctrl / Cmd to select multiple
+                    Optional — leave empty for no teacher. Hold Ctrl / Cmd to
+                    select multiple.
                   </div>
                 </div>
 
@@ -755,7 +747,8 @@ const ClassPage = () => {
                     ))}
                   </select>
                   <div className="mt-1 text-[11px] text-gray-500">
-                    Hold Ctrl / Cmd to select multiple
+                    Optional — leave empty for no teacher. Hold Ctrl / Cmd to
+                    select multiple.
                   </div>
                 </div>
 

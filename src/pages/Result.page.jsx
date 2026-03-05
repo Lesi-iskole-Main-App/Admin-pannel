@@ -259,28 +259,31 @@ const Result = () => {
           {/* Table */}
           <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
             <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[1250px] table-fixed border-separate border-spacing-0">
+              <table className="w-full min-w-[1550px] table-fixed border-separate border-spacing-0">
                 <thead>
                   <tr>
-                    <Th className="w-[22%]">Student Name</Th>
-                    <Th className="w-[14%]">Grade</Th>
-                    <Th className="w-[12%] text-center">Island Rank</Th>
-                    <Th className="w-[18%] text-center">Subjects</Th>
-                    <Th className="w-[16%]">Completed Paper Count</Th>
-                    <Th className="w-[18%] border-r-0 text-center">View Report</Th>
+                    <Th className="w-[18%]">Student Name</Th>
+                    <Th className="w-[12%]">Grade</Th>
+                    <Th className="w-[10%] text-center">Island Rank</Th>
+                    <Th className="w-[12%] text-center">Subjects</Th>
+                    <Th className="w-[12%]">Completed Paper Count</Th>
+                    <Th className="w-[10%] text-center">Free Paper Count</Th>
+                    <Th className="w-[10%] text-center">Practise Paper Count</Th>
+                    <Th className="w-[10%] text-center">Paid Paper Count</Th>
+                    <Th className="w-[16%] border-r-0 text-center">View Report</Th>
                   </tr>
                 </thead>
 
                 <tbody className="bg-white">
                   {isLoading || isFetching ? (
                     <tr>
-                      <td className="px-6 py-10 text-center text-gray-500" colSpan={6}>
+                      <td className="px-6 py-10 text-center text-gray-500" colSpan={9}>
                         Loading results...
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td className="px-6 py-10 text-center text-gray-500" colSpan={6}>
+                      <td className="px-6 py-10 text-center text-gray-500" colSpan={9}>
                         {subject ? "No results found" : "Please first choose subject"}
                       </td>
                     </tr>
@@ -309,6 +312,18 @@ const Result = () => {
 
                         <Td className="truncate">
                           {Number(r.completedPapersCount || 0)}
+                        </Td>
+
+                        <Td className="text-center">
+                          {Number(r.freePaperCount || 0)}
+                        </Td>
+
+                        <Td className="text-center">
+                          {Number(r.practisePaperCount || 0)}
+                        </Td>
+
+                        <Td className="text-center">
+                          {Number(r.paidPaperCount || 0)}
                         </Td>
 
                         <Td className="border-r-0 text-center">
