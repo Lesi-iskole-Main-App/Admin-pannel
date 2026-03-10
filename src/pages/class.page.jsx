@@ -54,6 +54,8 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
   );
 };
 
+const isALGrade = (gradeNo) => Number(gradeNo) === 12 || Number(gradeNo) === 13;
+
 const ClassPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -90,7 +92,7 @@ const ClassPage = () => {
   // ======= pagination =======
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ✅ only call details when view/update AND classId exists
+  // ======= details =======
   const shouldLoadDetails =
     (action === "view" || action === "update") && !!classId;
 
@@ -102,7 +104,7 @@ const ClassPage = () => {
     skip: !shouldLoadDetails,
   });
 
-  // ======= grades + subjects =======
+  // ======= grades =======
   const {
     data: gradesRes,
     isLoading: gradesLoading,
@@ -124,14 +126,9 @@ const ClassPage = () => {
   const allGrades = gradesRes?.grades || [];
   const teachers = teachersRes?.teachers || [];
 
-  const grades = useMemo(() => {
-    return allGrades.filter(
-      (g) => Number(g?.grade) >= 1 && Number(g?.grade) <= 11
-    );
-  }, [allGrades]);
-
   const rows = useMemo(() => {
     const list = data?.classes || [];
+
     return list.map((c) => {
       const teacherNames =
         c?.teacherIds?.length > 0
@@ -142,11 +139,16 @@ const ClassPage = () => {
       const createdDate = created ? created.toISOString().slice(0, 10) : "-";
       const createdTime = created ? created.toTimeString().slice(0, 5) : "-";
 
+      const gradeNo = Number(c?.gradeNo || c?.gradeId?.grade || 0);
+      const subjectDisplay = isALGrade(gradeNo)
+        ? [c?.streamName, c?.subjectName].filter(Boolean).join(" / ") || "—"
+        : c?.subjectName || "—";
+
       return {
         _id: c._id,
         className: c.className || "—",
-        grade: c.gradeNo ? `Grade ${c.gradeNo}` : "—",
-        subject: c.subjectName || "—",
+        grade: gradeNo ? `Grade ${gradeNo}` : "—",
+        subject: subjectDisplay,
         teacherName: teacherNames,
         createdDate,
         createdTime,
@@ -168,7 +170,8 @@ const ClassPage = () => {
     return rows.slice(start, end);
   }, [rows, currentPage]);
 
-  const startRecord = totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const startRecord =
+    totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
   const endRecord =
     totalRows === 0 ? 0 : Math.min(currentPage * ROWS_PER_PAGE, totalRows);
 
@@ -205,25 +208,84 @@ const ClassPage = () => {
     className: "",
     gradeId: "",
     subjectId: "",
+    streamId: "",
+    streamSubjectId: "",
     teacherIds: [],
     imageUrl: "",
     imagePublicId: "",
   });
 
   const selectedGrade = useMemo(() => {
-    return grades.find((g) => String(g?._id) === String(form.gradeId));
-  }, [grades, form.gradeId]);
+    return allGrades.find((g) => String(g?._id) === String(form.gradeId));
+  }, [allGrades, form.gradeId]);
 
-  const subjects = selectedGrade?.subjects || [];
+  const selectedGradeNo = Number(selectedGrade?.grade || 0);
+  const isAL = isALGrade(selectedGradeNo);
+
+  const subjects = useMemo(() => {
+    return Array.isArray(selectedGrade?.subjects) ? selectedGrade.subjects : [];
+  }, [selectedGrade]);
+
+  const streams = useMemo(() => {
+    return Array.isArray(selectedGrade?.streams) ? selectedGrade.streams : [];
+  }, [selectedGrade]);
+
+  const selectedStream = useMemo(() => {
+    return streams.find((s) => String(s?._id) === String(form.streamId));
+  }, [streams, form.streamId]);
+
+  const streamSubjects = useMemo(() => {
+    return Array.isArray(selectedStream?.subjects) ? selectedStream.subjects : [];
+  }, [selectedStream]);
 
   useEffect(() => {
     if (!form.gradeId) return;
-    const valid = new Set(subjects.map((s) => String(s?._id)));
-    if (form.subjectId && !valid.has(String(form.subjectId))) {
+
+    if (!isAL) {
+      const validSubjectIds = new Set(subjects.map((s) => String(s?._id)));
+
+      if (form.subjectId && !validSubjectIds.has(String(form.subjectId))) {
+        setForm((p) => ({ ...p, subjectId: "" }));
+      }
+
+      if (form.streamId || form.streamSubjectId) {
+        setForm((p) => ({
+          ...p,
+          streamId: "",
+          streamSubjectId: "",
+        }));
+      }
+      return;
+    }
+
+    const validStreamIds = new Set(streams.map((s) => String(s?._id)));
+    if (form.streamId && !validStreamIds.has(String(form.streamId))) {
+      setForm((p) => ({
+        ...p,
+        streamId: "",
+        streamSubjectId: "",
+      }));
+    }
+
+    if (form.subjectId) {
       setForm((p) => ({ ...p, subjectId: "" }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.gradeId]);
+  }, [form.gradeId, isAL, subjects, streams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isAL) return;
+
+    const validStreamSubjectIds = new Set(
+      streamSubjects.map((s) => String(s?._id))
+    );
+
+    if (
+      form.streamSubjectId &&
+      !validStreamSubjectIds.has(String(form.streamSubjectId))
+    ) {
+      setForm((p) => ({ ...p, streamSubjectId: "" }));
+    }
+  }, [isAL, streamSubjects]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (action === "create") {
@@ -231,6 +293,8 @@ const ClassPage = () => {
         className: "",
         gradeId: "",
         subjectId: "",
+        streamId: "",
+        streamSubjectId: "",
         teacherIds: [],
         imageUrl: "",
         imagePublicId: "",
@@ -238,7 +302,7 @@ const ClassPage = () => {
     }
   }, [action]);
 
-  // ✅ prefill when update opens
+  // ======= prefill when update opens =======
   useEffect(() => {
     if (action !== "update") return;
     const c = classRes?.class;
@@ -248,6 +312,8 @@ const ClassPage = () => {
       className: c?.className || "",
       gradeId: c?.gradeId?._id || c?.gradeId || "",
       subjectId: c?.subjectId || "",
+      streamId: c?.streamId || "",
+      streamSubjectId: c?.streamSubjectId || "",
       teacherIds: (c?.teacherIds || []).map((t) => t?._id).filter(Boolean),
       imageUrl: c?.imageUrl || "",
       imagePublicId: c?.imagePublicId || "",
@@ -263,21 +329,54 @@ const ClassPage = () => {
     }
   };
 
-  const submitCreate = async () => {
-    if (!form.className || !form.gradeId || !form.subjectId) {
-      alert("className, grade, subject are required");
-      return;
+  const validateForm = () => {
+    if (!form.className || !form.gradeId) {
+      alert("className and grade are required");
+      return false;
     }
 
+    if (isAL) {
+      if (!form.streamId || !form.streamSubjectId) {
+        alert("For A/L classes, stream and subject are required");
+        return false;
+      }
+    } else {
+      if (!form.subjectId) {
+        alert("For other grades, subject is required");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const buildPayload = () => {
+    const payload = {
+      className: form.className,
+      gradeId: form.gradeId,
+      teacherIds: form.teacherIds || [],
+      imageUrl: form.imageUrl,
+      imagePublicId: form.imagePublicId,
+      subjectId: null,
+      streamId: null,
+      streamSubjectId: null,
+    };
+
+    if (isAL) {
+      payload.streamId = form.streamId;
+      payload.streamSubjectId = form.streamSubjectId;
+    } else {
+      payload.subjectId = form.subjectId;
+    }
+
+    return payload;
+  };
+
+  const submitCreate = async () => {
+    if (!validateForm()) return;
+
     try {
-      await createClass({
-        className: form.className,
-        gradeId: form.gradeId,
-        subjectId: form.subjectId,
-        teacherIds: form.teacherIds || [],
-        imageUrl: form.imageUrl,
-        imagePublicId: form.imagePublicId,
-      }).unwrap();
+      await createClass(buildPayload()).unwrap();
       goList();
       setCurrentPage(1);
     } catch (e) {
@@ -287,22 +386,12 @@ const ClassPage = () => {
 
   const submitUpdate = async () => {
     if (!classId) return;
-    if (!form.className || !form.gradeId || !form.subjectId) {
-      alert("className, grade, subject are required");
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
       await updateClass({
         classId,
-        body: {
-          className: form.className,
-          gradeId: form.gradeId,
-          subjectId: form.subjectId,
-          teacherIds: form.teacherIds || [],
-          imageUrl: form.imageUrl,
-          imagePublicId: form.imagePublicId,
-        },
+        body: buildPayload(),
       }).unwrap();
       goList();
     } catch (e) {
@@ -464,6 +553,19 @@ const ClassPage = () => {
                   </div>
                 </div>
 
+                {isALGrade(
+                  Number(
+                    classRes?.class?.gradeNo || classRes?.class?.gradeId?.grade || 0
+                  )
+                ) && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">Stream</div>
+                    <div className="mt-1 text-sm text-gray-900">
+                      {classRes?.class?.streamName || "—"}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="text-sm font-medium text-gray-700">
                     Subject
@@ -562,11 +664,13 @@ const ClassPage = () => {
                         ...p,
                         gradeId: e.target.value,
                         subjectId: "",
+                        streamId: "",
+                        streamSubjectId: "",
                       }))
                     }
                   >
                     <option value="">Select Grade</option>
-                    {grades.map((g) => (
+                    {allGrades.map((g) => (
                       <option key={g._id} value={g._id}>
                         Grade {g.grade}
                       </option>
@@ -574,28 +678,87 @@ const ClassPage = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Subject
-                  </label>
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.subjectId}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, subjectId: e.target.value }))
-                    }
-                    disabled={!form.gradeId}
-                  >
-                    <option value="">
-                      {form.gradeId ? "Select Subject" : "Select grade first"}
-                    </option>
-                    {subjects.map((s) => (
-                      <option key={s._id} value={s._id}>
-                        {s.subject}
+                {!isAL ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Subject
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                      value={form.subjectId}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, subjectId: e.target.value }))
+                      }
+                      disabled={!form.gradeId}
+                    >
+                      <option value="">
+                        {form.gradeId ? "Select Subject" : "Select grade first"}
                       </option>
-                    ))}
-                  </select>
-                </div>
+                      {subjects.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.subject}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Stream
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamId: e.target.value,
+                            streamSubjectId: "",
+                          }))
+                        }
+                        disabled={!form.gradeId}
+                      >
+                        <option value="">
+                          {form.gradeId ? "Select Stream" : "Select grade first"}
+                        </option>
+                        {streams.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.stream}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Subject
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamSubjectId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamSubjectId: e.target.value,
+                          }))
+                        }
+                        disabled={!form.streamId}
+                      >
+                        <option value="">
+                          {form.streamId
+                            ? "Select Subject"
+                            : "Select stream first"}
+                        </option>
+                        {streamSubjects.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.subject}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
@@ -690,11 +853,13 @@ const ClassPage = () => {
                         ...p,
                         gradeId: e.target.value,
                         subjectId: "",
+                        streamId: "",
+                        streamSubjectId: "",
                       }))
                     }
                   >
                     <option value="">Select Grade</option>
-                    {grades.map((g) => (
+                    {allGrades.map((g) => (
                       <option key={g._id} value={g._id}>
                         Grade {g.grade}
                       </option>
@@ -702,28 +867,87 @@ const ClassPage = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Subject
-                  </label>
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.subjectId}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, subjectId: e.target.value }))
-                    }
-                    disabled={!form.gradeId}
-                  >
-                    <option value="">
-                      {form.gradeId ? "Select Subject" : "Select grade first"}
-                    </option>
-                    {subjects.map((s) => (
-                      <option key={s._id} value={s._id}>
-                        {s.subject}
+                {!isAL ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Subject
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                      value={form.subjectId}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, subjectId: e.target.value }))
+                      }
+                      disabled={!form.gradeId}
+                    >
+                      <option value="">
+                        {form.gradeId ? "Select Subject" : "Select grade first"}
                       </option>
-                    ))}
-                  </select>
-                </div>
+                      {subjects.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.subject}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Stream
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamId: e.target.value,
+                            streamSubjectId: "",
+                          }))
+                        }
+                        disabled={!form.gradeId}
+                      >
+                        <option value="">
+                          {form.gradeId ? "Select Stream" : "Select grade first"}
+                        </option>
+                        {streams.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.stream}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Subject
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamSubjectId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamSubjectId: e.target.value,
+                          }))
+                        }
+                        disabled={!form.streamId}
+                      >
+                        <option value="">
+                          {form.streamId
+                            ? "Select Subject"
+                            : "Select stream first"}
+                        </option>
+                        {streamSubjects.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.subject}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">

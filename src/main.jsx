@@ -26,6 +26,9 @@ import QuestionPage from "./pages/Quesion.page";
 import CreatePaperQuestionsPage from "./compoments/CreateQuestionCard";
 import ViewPaperQuestionsPage from "./pages/ViewPaperQuestionsPage";
 
+// recording page
+import RecordingPage from "./pages/Recording.page";
+
 // teacher module
 import TeacherLayout from "./layout/TeacherLayout";
 import TeacherPage from "./pages/Teacher.page";
@@ -158,6 +161,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           >
             <Route index element={<Navigate to="/lms/list" replace />} />
             <Route path="list" element={<LMSPage />} />
+
             <Route
               path="class"
               element={
@@ -166,11 +170,21 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                 </AdminRoute>
               }
             />
+
             <Route
               path="live"
               element={
                 <AdminRoute>
                   <LivePage />
+                </AdminRoute>
+              }
+            />
+
+            <Route
+              path="recording"
+              element={
+                <AdminRoute>
+                  <RecordingPage />
                 </AdminRoute>
               }
             />

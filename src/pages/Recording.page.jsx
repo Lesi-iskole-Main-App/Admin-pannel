@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
-  useGetAllLessonsQuery,
-  useCreateLessonMutation,
-  useUpdateLessonByIdMutation,
-  useDeleteLessonByIdMutation,
-} from "../api/lessonApi";
+  useGetAllRecordingsQuery,
+  useCreateRecordingByClassIdMutation,
+  useUpdateRecordingByClassIdMutation,
+  useDeleteRecordingByClassIdMutation,
+} from "../api/recordingApi";
 
 import { useGetAllClassesQuery } from "../api/classApi";
 
@@ -21,7 +21,7 @@ const ModalShell = ({ title, onClose, children }) => {
         role="button"
         tabIndex={-1}
       />
-      <div className="relative w-[95vw] max-w-[820px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+      <div className="relative w-[95vw] max-w-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
           <div className="text-base font-semibold text-gray-800">{title}</div>
           <button
@@ -52,15 +52,14 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
   );
 };
 
-const LMSPage = () => {
+const RecordingPage = () => {
   const navigate = useNavigate();
 
-  // ===== APIs =====
   const {
-    data: lessonsRes,
-    isLoading: lessonsLoading,
-    isError: lessonsError,
-  } = useGetAllLessonsQuery();
+    data: recordingsRes,
+    isLoading: recordingsLoading,
+    isError: recordingsError,
+  } = useGetAllRecordingsQuery();
 
   const {
     data: classesRes,
@@ -68,68 +67,72 @@ const LMSPage = () => {
     isError: classesError,
   } = useGetAllClassesQuery();
 
-  const [createLesson, { isLoading: isCreating }] = useCreateLessonMutation();
-  const [updateLessonById, { isLoading: isUpdating }] =
-    useUpdateLessonByIdMutation();
-  const [deleteLessonById, { isLoading: isDeleting }] =
-    useDeleteLessonByIdMutation();
+  const [createRecordingByClassId, { isLoading: isCreating }] =
+    useCreateRecordingByClassIdMutation();
+
+  const [updateRecordingByClassId, { isLoading: isUpdating }] =
+    useUpdateRecordingByClassIdMutation();
+
+  const [deleteRecordingByClassId, { isLoading: isDeleting }] =
+    useDeleteRecordingByClassIdMutation();
 
   const classes = classesRes?.classes || [];
-  const lessons = lessonsRes?.lessons || [];
+  const recordings = recordingsRes?.recordings || [];
 
-  // ===== UI state (modals) =====
   const [modal, setModal] = useState({
     open: false,
     mode: "create",
-    lessonId: null,
+    recordingId: null,
   });
 
-  const openCreate = () =>
-    setModal({ open: true, mode: "create", lessonId: null });
-
-  const openEdit = (lesson) =>
-    setModal({ open: true, mode: "edit", lessonId: lesson?._id || null });
-
-  const closeModal = () =>
-    setModal({ open: false, mode: "create", lessonId: null });
-
-  // ===== Pagination =====
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ===== Form =====
   const [form, setForm] = useState({
     classId: "",
     grade: "",
-    stream: "",
     subject: "",
     teacherName: "",
-    youtubeUrl: "",
+    recordingUrl: "",
     title: "",
     description: "",
     date: "",
     time: "",
   });
 
+  const openCreate = () =>
+    setModal({ open: true, mode: "create", recordingId: null });
+
+  const openEdit = (recording) =>
+    setModal({
+      open: true,
+      mode: "edit",
+      recordingId: recording?._id || null,
+    });
+
+  const closeModal = () =>
+    setModal({ open: false, mode: "create", recordingId: null });
+
   const selectedClass = useMemo(() => {
     return classes.find((c) => String(c?._id) === String(form.classId));
   }, [classes, form.classId]);
 
   const autoInfo = useMemo(() => {
-    if (!selectedClass) {
-      return { grade: "", stream: "", subject: "", teacherName: "" };
-    }
+    if (!selectedClass) return { grade: "", subject: "", teacherName: "" };
 
-    const gradeNo =
-      selectedClass?.gradeNo ||
-      selectedClass?.gradeId?.grade ||
-      selectedClass?.grade ||
+    const grade = selectedClass?.gradeNo
+      ? `Grade ${selectedClass.gradeNo}`
+      : selectedClass?.gradeId?.grade
+      ? `Grade ${selectedClass.gradeId.grade}`
+      : selectedClass?.grade
+      ? `Grade ${selectedClass.grade}`
+      : "";
+
+    const subject =
+      selectedClass?.subjectName ||
+      selectedClass?.subjectId?.subject ||
+      selectedClass?.streamSubjectId?.subject ||
+      selectedClass?.subject ||
       "";
-
-    const grade = gradeNo ? `Grade ${gradeNo}` : "";
-
-    const stream = selectedClass?.streamName || selectedClass?.stream || "";
-
-    const subject = selectedClass?.subjectName || selectedClass?.subject || "";
 
     const teacherName =
       (selectedClass?.teacherIds || [])
@@ -137,48 +140,33 @@ const LMSPage = () => {
         .filter(Boolean)
         .join(", ") || "No Teacher";
 
-    return { grade, stream, subject, teacherName };
+    return { grade, subject, teacherName };
   }, [selectedClass]);
 
-  // Keep grade/stream/subject/teacher auto-filled when class changes
   useEffect(() => {
     if (!form.classId) {
-      setForm((p) => ({
-        ...p,
-        grade: "",
-        stream: "",
-        subject: "",
-        teacherName: "",
-      }));
+      setForm((p) => ({ ...p, grade: "", subject: "", teacherName: "" }));
       return;
     }
 
     setForm((p) => ({
       ...p,
       grade: autoInfo.grade,
-      stream: autoInfo.stream,
       subject: autoInfo.subject,
       teacherName: autoInfo.teacherName,
     }));
-  }, [
-    form.classId,
-    autoInfo.grade,
-    autoInfo.stream,
-    autoInfo.subject,
-    autoInfo.teacherName,
-  ]);
+  }, [form.classId, autoInfo.grade, autoInfo.subject, autoInfo.teacherName]);
 
-  // Reset on open create
   useEffect(() => {
     if (!modal.open) return;
+
     if (modal.mode === "create") {
       setForm({
         classId: "",
         grade: "",
-        stream: "",
         subject: "",
         teacherName: "",
-        youtubeUrl: "",
+        recordingUrl: "",
         title: "",
         description: "",
         date: "",
@@ -187,76 +175,74 @@ const LMSPage = () => {
     }
   }, [modal.open, modal.mode]);
 
-  // Prefill on edit
   useEffect(() => {
     if (!modal.open || modal.mode !== "edit") return;
 
-    const lesson = lessons.find(
-      (l) => String(l?._id) === String(modal.lessonId)
+    const recording = recordings.find(
+      (r) => String(r?._id) === String(modal.recordingId)
     );
-    if (!lesson) return;
 
-    const classId = lesson?.classId || "";
+    if (!recording) return;
 
-    const grade = lesson?.classDetails?.grade
-      ? `Grade ${lesson.classDetails.grade}`
+    const classId =
+      typeof recording?.classId === "object"
+        ? recording?.classId?._id
+        : recording?.classId || "";
+
+    const grade = recording?.classDetails?.grade
+      ? `Grade ${recording.classDetails.grade}`
       : "";
 
-    const stream = lesson?.classDetails?.stream || "";
-    const subject = lesson?.classDetails?.subject || "";
+    const subject = recording?.classDetails?.subject || "";
+
     const teacherName =
-      (lesson?.classDetails?.teachers || []).join(", ") || "No Teacher";
+      (recording?.classDetails?.teachers || []).join(", ") || "No Teacher";
 
     setForm({
       classId,
       grade,
-      stream,
       subject,
       teacherName,
-      youtubeUrl: lesson?.youtubeUrl || "",
-      title: lesson?.title || "",
-      description: lesson?.description || "",
-      date: lesson?.date || "",
-      time: lesson?.time || "",
+      recordingUrl: recording?.recordingUrl || "",
+      title: recording?.title || "",
+      description: recording?.description || "",
+      date: recording?.date || "",
+      time: recording?.time || "",
     });
-  }, [modal.open, modal.mode, modal.lessonId, lessons]);
+  }, [modal.open, modal.mode, modal.recordingId, recordings]);
 
-  // ===== Table rows =====
   const rows = useMemo(() => {
-    return lessons.map((l) => {
-      const className = l?.classDetails?.className || "—";
-      const grade = l?.classDetails?.grade
-        ? `Grade ${l.classDetails.grade}`
+    return recordings.map((r) => {
+      const className = r?.classDetails?.className || "—";
+      const grade = r?.classDetails?.grade
+        ? `Grade ${r.classDetails.grade}`
         : "—";
-      const stream = l?.classDetails?.stream || "—";
-      const subject = l?.classDetails?.subject || "—";
+      const subject = r?.classDetails?.subject || "—";
       const teacher =
-        (l?.classDetails?.teachers || []).join(", ") || "No Teacher";
+        (r?.classDetails?.teachers || []).join(", ") || "No Teacher";
 
       return {
-        _id: l._id,
+        _id: r._id,
+        classId: typeof r?.classId === "object" ? r?.classId?._id : r?.classId,
         className,
         grade,
-        stream,
         subject,
         teacher,
-        youtubeUrl: l.youtubeUrl || "",
-        lessonName: l.title || "—",
-        description: l.description || "—",
-        date: l.date || "—",
-        time: l.time || "—",
-        raw: l,
+        recordingUrl: r.recordingUrl || "",
+        recordingName: r.title || "—",
+        description: r.description || "—",
+        date: r.date || "—",
+        time: r.time || "—",
+        raw: r,
       };
     });
-  }, [lessons]);
+  }, [recordings]);
 
   const totalRows = rows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
 
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
+    if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
   const paginatedRows = useMemo(() => {
@@ -275,14 +261,13 @@ const LMSPage = () => {
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
   const goToLastPage = () => setCurrentPage(totalPages);
 
-  // ===== Actions =====
   const validate = () => {
     if (!form.classId) {
       alert("Please select a class");
       return false;
     }
-    if (!form.title || !form.date || !form.time) {
-      alert("Lesson name, date, time are required");
+    if (!form.title || !form.date || !form.time || !form.recordingUrl) {
+      alert("Recording name, date, time and recording link are required");
       return false;
     }
     return true;
@@ -292,14 +277,17 @@ const LMSPage = () => {
     if (!validate()) return;
 
     try {
-      await createLesson({
+      await createRecordingByClassId({
         classId: form.classId,
-        title: form.title,
-        date: form.date,
-        time: form.time,
-        description: form.description || "",
-        youtubeUrl: form.youtubeUrl || "",
+        body: {
+          title: form.title,
+          date: form.date,
+          time: form.time,
+          description: form.description || "",
+          recordingUrl: form.recordingUrl || "",
+        },
       }).unwrap();
+
       closeModal();
       setCurrentPage(1);
     } catch (e) {
@@ -309,47 +297,52 @@ const LMSPage = () => {
 
   const submitUpdate = async () => {
     if (!validate()) return;
-    if (!modal.lessonId) return;
+    if (!modal.recordingId) return;
 
     try {
-      await updateLessonById({
-        lessonId: modal.lessonId,
+      await updateRecordingByClassId({
+        classId: form.classId,
+        recordingId: modal.recordingId,
         body: {
-          classId: form.classId,
           title: form.title,
           date: form.date,
           time: form.time,
           description: form.description || "",
-          youtubeUrl: form.youtubeUrl || "",
+          recordingUrl: form.recordingUrl || "",
         },
       }).unwrap();
+
       closeModal();
     } catch (e) {
       alert(e?.data?.message || "Update failed");
     }
   };
 
-  const onDelete = async (lessonId) => {
-    if (!window.confirm("Delete this lesson?")) return;
+  const onDelete = async (row) => {
+    if (!window.confirm("Delete this recording?")) return;
+
     try {
-      await deleteLessonById(lessonId).unwrap();
+      await deleteRecordingByClassId({
+        classId: row.classId,
+        recordingId: row._id,
+      }).unwrap();
     } catch (e) {
       alert(e?.data?.message || "Delete failed");
     }
   };
 
-  const formLoading = classesLoading || lessonsLoading;
+  const formLoading = classesLoading || recordingsLoading;
 
   return (
-    <div className="flex w-full justify-center ">
+    <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-              Learning Management System
+              Recording Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage lesson schedules, links, and class details.
+              Manage class recording links, details, and schedules.
             </p>
           </div>
 
@@ -358,7 +351,7 @@ const LMSPage = () => {
               className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
               onClick={openCreate}
             >
-              + Add Lesson
+              + Add Recording
             </button>
 
             <button
@@ -384,10 +377,11 @@ const LMSPage = () => {
           </div>
         </div>
 
-        {/* CREATE / EDIT MODAL */}
         {modal.open && (
           <ModalShell
-            title={modal.mode === "create" ? "Create Lesson" : "Edit Lesson"}
+            title={
+              modal.mode === "create" ? "Create Recording" : "Edit Recording"
+            }
             onClose={closeModal}
           >
             {formLoading ? (
@@ -396,7 +390,6 @@ const LMSPage = () => {
               <div className="text-sm text-red-600">Failed to load classes</div>
             ) : (
               <div className="space-y-4">
-                {/* Class dropdown */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Class Name <span className="text-red-600">*</span>
@@ -417,8 +410,7 @@ const LMSPage = () => {
                   </select>
                 </div>
 
-                {/* Auto fields */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Grade
@@ -426,17 +418,6 @@ const LMSPage = () => {
                     <input
                       className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
                       value={form.grade}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Stream
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={form.stream}
                       disabled
                     />
                   </div>
@@ -464,25 +445,23 @@ const LMSPage = () => {
                   </div>
                 </div>
 
-                {/* YouTube link */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    YouTube Link
+                    Recording Link <span className="text-red-600">*</span>
                   </label>
                   <input
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.youtubeUrl}
+                    value={form.recordingUrl}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, youtubeUrl: e.target.value }))
+                      setForm((p) => ({ ...p, recordingUrl: e.target.value }))
                     }
-                    placeholder="https://youtube.com/..."
+                    placeholder="https://youtube.com/... or video link"
                   />
                 </div>
 
-                {/* Lesson name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Lesson Name <span className="text-red-600">*</span>
+                    Recording Name <span className="text-red-600">*</span>
                   </label>
                   <input
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
@@ -490,11 +469,10 @@ const LMSPage = () => {
                     onChange={(e) =>
                       setForm((p) => ({ ...p, title: e.target.value }))
                     }
-                    placeholder="Enter lesson name"
+                    placeholder="Enter recording name"
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Description
@@ -509,7 +487,6 @@ const LMSPage = () => {
                   />
                 </div>
 
-                {/* Date + Time */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
@@ -540,7 +517,6 @@ const LMSPage = () => {
                   </div>
                 </div>
 
-                {/* Buttons */}
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="button"
@@ -575,10 +551,9 @@ const LMSPage = () => {
           </ModalShell>
         )}
 
-        {/* TABLE */}
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1450px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1300px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
@@ -588,52 +563,49 @@ const LMSPage = () => {
                     Grade
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Stream
-                  </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Teacher Name
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    YouTube Link
+                    Recording Link
                   </th>
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Lesson Name
+                    Recording Name
                   </th>
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
                     Description
                   </th>
-                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Date
                   </th>
                   <th className="w-[6%] border-b border-r border-gray-200 px-4 py-3">
                     Time
                   </th>
-                  <th className="w-[8%] border-b border-gray-200 px-4 py-3 text-center">
+                  <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">
                     Operation
                   </th>
                 </tr>
               </thead>
 
               <tbody className="bg-white text-sm text-gray-700">
-                {lessonsLoading ? (
+                {recordingsLoading ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
-                ) : lessonsError ? (
+                ) : recordingsError ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-red-600">
-                      Failed to load lessons
+                    <td colSpan={10} className="px-6 py-8 text-center text-red-600">
+                      Failed to load recordings
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                      No lesson records found
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                      No recording records found
                     </td>
                   </tr>
                 ) : (
@@ -650,10 +622,6 @@ const LMSPage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.stream}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.subject}</div>
                       </td>
 
@@ -662,9 +630,9 @@ const LMSPage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        {r.youtubeUrl ? (
+                        {r.recordingUrl ? (
                           <a
-                            href={r.youtubeUrl}
+                            href={r.recordingUrl}
                             target="_blank"
                             rel="noreferrer"
                             className="truncate font-medium text-blue-600 hover:underline"
@@ -677,7 +645,7 @@ const LMSPage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.lessonName}</div>
+                        <div className="truncate">{r.recordingName}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
@@ -694,10 +662,7 @@ const LMSPage = () => {
 
                       <td className="border-b border-gray-200 px-4 py-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
-                          <IconButton
-                            title="Edit"
-                            onClick={() => openEdit(r.raw)}
-                          >
+                          <IconButton title="Edit" onClick={() => openEdit(r.raw)}>
                             <svg
                               viewBox="0 0 24 24"
                               className="h-4 w-4"
@@ -714,7 +679,7 @@ const LMSPage = () => {
 
                           <IconButton
                             title="Delete"
-                            onClick={() => onDelete(r._id)}
+                            onClick={() => onDelete(r)}
                             disabled={isDeleting}
                           >
                             <svg
@@ -742,7 +707,6 @@ const LMSPage = () => {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}
@@ -796,4 +760,4 @@ const LMSPage = () => {
   );
 };
 
-export default LMSPage;
+export default RecordingPage;

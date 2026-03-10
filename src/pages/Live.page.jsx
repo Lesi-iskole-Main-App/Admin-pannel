@@ -1,4 +1,3 @@
-// src/pages/live.page.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -79,10 +78,10 @@ const LivePage = () => {
 
   const action = searchParams.get("action"); // create | update | view | null
   const liveId = searchParams.get("liveId");
+  const classIdFromQuery = searchParams.get("classId");
 
   const goList = () => navigate("/lms/live", { replace: true });
 
-  // ✅ classes for dropdown + autofill
   const {
     data: classRes,
     isLoading: classLoading,
@@ -91,7 +90,6 @@ const LivePage = () => {
 
   const classes = classRes?.classes || [];
 
-  // ✅ live list
   const {
     data: liveRes,
     isLoading: liveLoading,
@@ -108,14 +106,18 @@ const LivePage = () => {
     data: liveByIdRes,
     isLoading: liveByIdLoading,
     isError: liveByIdError,
-  } = useGetLiveByIdQuery(liveId, {
-    skip: !(action === "update" || action === "view") || !liveId,
-  });
+  } = useGetLiveByIdQuery(
+    { classId: classIdFromQuery, liveId },
+    {
+      skip:
+        !(action === "update" || action === "view") ||
+        !liveId ||
+        !classIdFromQuery,
+    }
+  );
 
-  // ===== pagination =====
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ===== form =====
   const [form, setForm] = useState({
     classId: "",
     zoomLink: "",
@@ -129,40 +131,40 @@ const LivePage = () => {
 
   const teacherName = useMemo(() => {
     const names =
-      (selectedClass?.teacherIds || []).map((t) => t?.name).filter(Boolean) || [];
+      (selectedClass?.teacherIds || []).map((t) => t?.name).filter(Boolean) ||
+      [];
     return names.join(", ") || "—";
   }, [selectedClass]);
 
   const gradeName = useMemo(() => {
-    return selectedClass?.gradeNo ? `Grade ${selectedClass.gradeNo}` : "—";
+    if (selectedClass?.gradeNo) return `Grade ${selectedClass.gradeNo}`;
+    if (selectedClass?.grade) return `Grade ${selectedClass.grade}`;
+    return "—";
   }, [selectedClass]);
 
   const subjectName = useMemo(() => {
-    return selectedClass?.subjectName || "—";
+    return selectedClass?.subjectName || selectedClass?.subject || "—";
   }, [selectedClass]);
 
-  // reset on create
   useEffect(() => {
     if (action === "create") {
       setForm({ classId: "", zoomLink: "", date: "", time: "" });
     }
   }, [action]);
 
-  // prefill on update
   useEffect(() => {
     if (action !== "update") return;
     const live = liveByIdRes?.live;
     if (!live) return;
 
     setForm({
-      classId: live?.classId?._id || live?.classId || "",
+      classId: String(live?.classId?._id || live?.classId || ""),
       zoomLink: live?.zoomLink || "",
       date: toDateInput(live?.scheduledAt),
       time: toTimeInput(live?.scheduledAt),
     });
   }, [action, liveByIdRes]);
 
-  // table rows
   const rows = useMemo(() => {
     return lives.map((l) => {
       const dt = l?.scheduledAt ? new Date(l.scheduledAt) : null;
@@ -171,13 +173,16 @@ const LivePage = () => {
       const time =
         dt && !Number.isNaN(dt.getTime()) ? dt.toTimeString().slice(0, 5) : "—";
 
+      const details = l?.classDetails || {};
+
       return {
         _id: l._id,
-        className: l.className || "—",
-        teacherName: (l.teacherNames || []).join(", ") || "—",
-        grade: l.gradeName ? `Grade ${l.gradeName}` : "—",
-        subject: l.subjectName || "—",
-        zoomLink: l.zoomLink || "—",
+        classId: l?.classId?._id || l?.classId || "",
+        className: details?.className || "—",
+        teacherName: (details?.teachers || []).join(", ") || "—",
+        grade: details?.grade ? `Grade ${details.grade}` : "—",
+        subject: details?.subject || "—",
+        zoomLink: l?.zoomLink || "—",
         date,
         time,
       };
@@ -199,8 +204,10 @@ const LivePage = () => {
     return rows.slice(start, end);
   }, [rows, currentPage]);
 
-  const startRecord = totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
-  const endRecord = totalRows === 0 ? 0 : Math.min(currentPage * ROWS_PER_PAGE, totalRows);
+  const startRecord =
+    totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const endRecord =
+    totalRows === 0 ? 0 : Math.min(currentPage * ROWS_PER_PAGE, totalRows);
 
   const goToFirstPage = () => setCurrentPage(1);
   const goToPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
@@ -208,12 +215,13 @@ const LivePage = () => {
   const goToLastPage = () => setCurrentPage(totalPages);
 
   const openCreate = () => navigate("/lms/live?action=create");
-  const openUpdate = (id) => navigate(`/lms/live?action=update&liveId=${id}`);
+  const openUpdate = (id, classId) =>
+    navigate(`/lms/live?action=update&liveId=${id}&classId=${classId}`);
 
-  const onDelete = async (id) => {
+  const onDelete = async (liveId, classId) => {
     if (!window.confirm("Delete this live session?")) return;
     try {
-      await deleteLive(id).unwrap();
+      await deleteLive({ classId, liveId }).unwrap();
     } catch (e) {
       alert(e?.data?.message || "Delete failed");
     }
@@ -232,6 +240,7 @@ const LivePage = () => {
         scheduledAt: buildScheduledAt(form.date, form.time),
         zoomLink: form.zoomLink,
       }).unwrap();
+
       goList();
       setCurrentPage(1);
     } catch (e) {
@@ -240,7 +249,8 @@ const LivePage = () => {
   };
 
   const submitUpdate = async () => {
-    if (!liveId) return;
+    if (!liveId || !classIdFromQuery) return;
+
     if (!form.classId || !form.zoomLink || !form.date || !form.time) {
       alert("class, zoom link, date, time are required");
       return;
@@ -248,14 +258,15 @@ const LivePage = () => {
 
     try {
       await updateLive({
-        id: liveId,
+        classId: classIdFromQuery,
+        liveId,
         body: {
-          classId: form.classId,
           title: `${selectedClass?.className || "Live"}`,
           scheduledAt: buildScheduledAt(form.date, form.time),
           zoomLink: form.zoomLink,
         },
       }).unwrap();
+
       goList();
     } catch (e) {
       alert(e?.data?.message || "Update failed");
@@ -306,7 +317,6 @@ const LivePage = () => {
           </div>
         </div>
 
-        {/* CREATE MODAL */}
         {action === "create" && (
           <ModalShell title="Create Live Session" onClose={goList}>
             {classLoading ? (
@@ -437,11 +447,10 @@ const LivePage = () => {
           </ModalShell>
         )}
 
-        {/* UPDATE MODAL */}
         {action === "update" && (
           <ModalShell title="Update Live Session" onClose={goList}>
-            {!liveId ? (
-              <div className="text-sm text-red-600">Missing liveId</div>
+            {!liveId || !classIdFromQuery ? (
+              <div className="text-sm text-red-600">Missing liveId or classId</div>
             ) : liveByIdLoading || classLoading ? (
               <div className="text-sm text-gray-500">Loading...</div>
             ) : liveByIdError ? (
@@ -455,8 +464,9 @@ const LivePage = () => {
                     Class Name
                   </label>
                   <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
                     value={form.classId}
+                    disabled
                     onChange={(e) =>
                       setForm((p) => ({ ...p, classId: e.target.value }))
                     }
@@ -571,7 +581,6 @@ const LivePage = () => {
           </ModalShell>
         )}
 
-        {/* TABLE */}
         <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[1250px] table-fixed border-separate border-spacing-0">
@@ -671,7 +680,7 @@ const LivePage = () => {
                         <div className="flex items-center justify-center gap-2">
                           <IconButton
                             title="Edit"
-                            onClick={() => openUpdate(r._id)}
+                            onClick={() => openUpdate(r._id, r.classId)}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -689,7 +698,7 @@ const LivePage = () => {
 
                           <IconButton
                             title="Delete"
-                            onClick={() => onDelete(r._id)}
+                            onClick={() => onDelete(r._id, r.classId)}
                             disabled={deleting}
                           >
                             <svg
@@ -717,7 +726,6 @@ const LivePage = () => {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}

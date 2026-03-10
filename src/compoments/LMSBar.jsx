@@ -1,13 +1,13 @@
-// src/compoments/LMSBar.jsx
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { FaEye, FaUsers, FaVideo } from "react-icons/fa";
+import { FaEye, FaUsers, FaVideo, FaPlayCircle } from "react-icons/fa";
 
 const LMSBar = () => {
   const menuItemsTop = [
     { icon: FaEye, label: "LMS", path: "/lms/list" },
     { icon: FaUsers, label: "Class", path: "/lms/class" },
     { icon: FaVideo, label: "Live", path: "/lms/live" },
+    { icon: FaPlayCircle, label: "Recording", path: "/lms/recording" },
   ];
 
   return (
@@ -46,7 +46,9 @@ const LMSBar = () => {
                     <span
                       className={[
                         "mt-2 text-[9px] sm:text-xs font-medium leading-tight text-center",
-                        isActive ? "text-blue-700" : "text-gray-600 group-hover:text-blue-600",
+                        isActive
+                          ? "text-blue-700"
+                          : "text-gray-600 group-hover:text-blue-600",
                       ].join(" ")}
                     >
                       {item.label}

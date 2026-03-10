@@ -35,6 +35,8 @@ import { uploadApi } from "./uploadApi";
 import studentReducer from "./features/studentSlice";
 import { studentApi } from "./studentApi";
 
+import { recordingApi } from "./recordingApi";
+
 // ✅ NEW
 import { adminResultReportApi } from "./adminResultReportApi";
 
@@ -45,8 +47,8 @@ export const store = configureStore({
     teacher: teacherReducer,
     classUi: classUiReducer,
     lessonUi: lessonUiReducer,
-    enrollUi: enrollUiReducer,
     liveUi: liveUiReducer,
+    enrollUi: enrollUiReducer,
     paper: paperReducer,
     questionUi: questionUiReducer,
     student: studentReducer,
@@ -54,33 +56,36 @@ export const store = configureStore({
     [authApi.reducerPath]: authApi.reducer,
     [gradeSubjectApi.reducerPath]: gradeSubjectApi.reducer,
     [teacherApi.reducerPath]: teacherApi.reducer,
-    [classApi.reducerPath]: classApi.reducer,
     [teacherAssignmentApi.reducerPath]: teacherAssignmentApi.reducer,
+    [classApi.reducerPath]: classApi.reducer,
     [lessonApi.reducerPath]: lessonApi.reducer,
-    [enrollApi.reducerPath]: enrollApi.reducer,
     [liveApi.reducerPath]: liveApi.reducer,
+    [enrollApi.reducerPath]: enrollApi.reducer,
     [paperApi.reducerPath]: paperApi.reducer,
     [questionApi.reducerPath]: questionApi.reducer,
     [uploadApi.reducerPath]: uploadApi.reducer,
     [studentApi.reducerPath]: studentApi.reducer,
+    [recordingApi.reducerPath]: recordingApi.reducer,
 
     // ✅ NEW
     [adminResultReportApi.reducerPath]: adminResultReportApi.reducer,
   },
+
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
       authApi.middleware,
       gradeSubjectApi.middleware,
       teacherApi.middleware,
-      classApi.middleware,
       teacherAssignmentApi.middleware,
+      classApi.middleware,
       lessonApi.middleware,
-      enrollApi.middleware,
       liveApi.middleware,
+      enrollApi.middleware,
       paperApi.middleware,
       questionApi.middleware,
       uploadApi.middleware,
       studentApi.middleware,
+      recordingApi.middleware,
 
       // ✅ NEW
       adminResultReportApi.middleware
