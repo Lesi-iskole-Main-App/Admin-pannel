@@ -2,8 +2,8 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   selectedGradeId: null,
-  selectedGradeNumber: null, // grade.grade (1..13)
-  selectedStreamId: null, // for grade 12-13 flow
+  selectedGradeNumber: null,
+  selectedStreamId: null,
 };
 
 const gradeSubjectSlice = createSlice({
@@ -14,8 +14,6 @@ const gradeSubjectSlice = createSlice({
       const { gradeId, gradeNumber } = action.payload || {};
       state.selectedGradeId = gradeId || null;
       state.selectedGradeNumber = gradeNumber ?? null;
-
-      // whenever grade changes, reset stream selection
       state.selectedStreamId = null;
     },
     setSelectedStream: (state, action) => {
@@ -25,5 +23,7 @@ const gradeSubjectSlice = createSlice({
   },
 });
 
-export const { setSelectedGrade, setSelectedStream, resetGradeFlow } = gradeSubjectSlice.actions;
+export const { setSelectedGrade, setSelectedStream, resetGradeFlow } =
+  gradeSubjectSlice.actions;
+
 export default gradeSubjectSlice.reducer;

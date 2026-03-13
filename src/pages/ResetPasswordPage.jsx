@@ -17,18 +17,18 @@ export default function ResetPasswordPage() {
   });
 
   const [error, setError] = useState("");
-  const [msg, setMsg] = useState("");
 
   const onChange = (e) => {
     setError("");
-    setMsg("");
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setMsg("");
 
     try {
       await resetPassword({
@@ -38,7 +38,6 @@ export default function ResetPasswordPage() {
         confirmPassword: form.confirmPassword,
       }).unwrap();
 
-      // ✅ Flow 2 final: home
       navigate("/home");
     } catch (err) {
       setError(err?.data?.message || "Reset failed");
@@ -58,11 +57,6 @@ export default function ResetPasswordPage() {
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
             {error}
-          </div>
-        )}
-        {msg && (
-          <div className="mb-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm">
-            {msg}
           </div>
         )}
 

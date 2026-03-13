@@ -1,22 +1,16 @@
-// src/pages/GradeSubject.page.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   useGetGradesQuery,
   useCreateGradeMutation,
   useDeleteGradeMutation,
 
-  // 1-11 subjects
   useGetSubjectsByGradeQuery,
   useCreateSubjectMutation,
   useUpdateSubjectMutation,
   useDeleteSubjectMutation,
 
-  // 12-13 streams + stream subjects
   useGetStreamsByGradeQuery,
-  useCreateStreamMutation,
-  useUpdateStreamMutation,
-  useDeleteStreamMutation,
 
   useGetStreamSubjectsQuery,
   useCreateStreamSubjectMutation,
@@ -25,6 +19,52 @@ import {
 } from "../api/gradeSubjectApi";
 
 const ROWS_PER_PAGE = 20;
+
+const AL_STREAM_ORDER = [
+  "physical_science",
+  "biological_science",
+  "commerce",
+  "arts",
+  "technology",
+  "common",
+];
+
+const AL_STREAM_LABELS = {
+  physical_science: "Physical Science",
+  biological_science: "Biological Science",
+  commerce: "Commerce",
+  arts: "Arts",
+  technology: "Technology",
+  common: "Common",
+};
+
+const getStreamLabel = (value) =>
+  AL_STREAM_LABELS[String(value || "").trim()] || String(value || "").trim();
+
+const sortStreams = (streams = []) => {
+  const orderMap = new Map(AL_STREAM_ORDER.map((x, i) => [x, i]));
+  return [...streams].sort((a, b) => {
+    const aRank = orderMap.has(a?.stream) ? orderMap.get(a.stream) : 999;
+    const bRank = orderMap.has(b?.stream) ? orderMap.get(b.stream) : 999;
+    if (aRank !== bRank) return aRank - bRank;
+    return String(a?.stream || "").localeCompare(String(b?.stream || ""));
+  });
+};
+
+const uniqueSubjects = (items = []) => {
+  const used = new Set();
+  const out = [];
+
+  for (const item of items) {
+    const subject = String(item?.subject || "").trim();
+    const key = subject.toLowerCase();
+    if (!subject || used.has(key)) continue;
+    used.add(key);
+    out.push(subject);
+  }
+
+  return out.sort((a, b) => a.localeCompare(b));
+};
 
 /* ---------------------- PROFESSIONAL MODAL ---------------------- */
 const Modal = ({ open, title, children, onClose, maxWidth = "max-w-lg" }) => {
@@ -52,29 +92,17 @@ const Modal = ({ open, title, children, onClose, maxWidth = "max-w-lg" }) => {
   );
 };
 
-const IconButton = ({ onClick, title, children, disabled = false }) => {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      disabled={disabled}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-};
-
-const is12or13 = (n) => n === 12 || n === 13;
-const gradeOptions = Array.from({ length: 13 }, (_, i) => i + 1);
+const gradeOptions = Array.from({ length: 11 }, (_, i) => i + 1);
 
 /* -------------------- Modal: Grade 1–11 Subjects -------------------- */
 function GradeSubjectsModal({ open, grade, onClose }) {
   const gradeId = grade?._id;
   const enabled = open && gradeId;
 
-  const { data, isLoading } = useGetSubjectsByGradeQuery(gradeId, { skip: !enabled });
+  const { data, isLoading } = useGetSubjectsByGradeQuery(gradeId, {
+    skip: !enabled,
+  });
+
   const subjects = data?.subjects || [];
 
   const [createSubject] = useCreateSubjectMutation();
@@ -88,6 +116,7 @@ function GradeSubjectsModal({ open, grade, onClose }) {
   const add = async () => {
     const name = newSubject.trim();
     if (!name) return;
+
     try {
       await createSubject({ gradeId, subject: name }).unwrap();
       setNewSubject("");
@@ -104,8 +133,13 @@ function GradeSubjectsModal({ open, grade, onClose }) {
   const saveEdit = async () => {
     const name = editValue.trim();
     if (!name) return;
+
     try {
-      await updateSubject({ gradeId, subjectId: editId, subject: name }).unwrap();
+      await updateSubject({
+        gradeId,
+        subjectId: editId,
+        subject: name,
+      }).unwrap();
       setEditId(null);
       setEditValue("");
     } catch (e) {
@@ -116,6 +150,7 @@ function GradeSubjectsModal({ open, grade, onClose }) {
   const remove = async (subjectId) => {
     const ok = window.confirm("Delete subject?");
     if (!ok) return;
+
     try {
       await deleteSubject({ gradeId, subjectId }).unwrap();
     } catch (e) {
@@ -124,7 +159,11 @@ function GradeSubjectsModal({ open, grade, onClose }) {
   };
 
   return (
-    <Modal open={open} title={`Grade ${grade?.grade} Subjects`} onClose={onClose}>
+    <Modal
+      open={open}
+      title={`${grade?.title || `Grade ${grade?.grade}`} Subjects`}
+      onClose={onClose}
+    >
       <div className="flex gap-2">
         <input
           className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
@@ -158,7 +197,9 @@ function GradeSubjectsModal({ open, grade, onClose }) {
                   onChange={(e) => setEditValue(e.target.value)}
                 />
               ) : (
-                <span className="text-sm font-medium text-gray-800">{s.subject}</span>
+                <span className="text-sm font-medium text-gray-800">
+                  {s.subject}
+                </span>
               )}
 
               <div className="flex gap-2">
@@ -193,22 +234,58 @@ function GradeSubjectsModal({ open, grade, onClose }) {
   );
 }
 
-/* -------------------- Modal: Grade 12–13 Stream Subjects -------------------- */
-function StreamSubjectsModal({ open, grade, onClose }) {
+/* -------------------- Modal: A/L Stream Subjects -------------------- */
+function ALStreamSubjectsModal({ open, grade, onClose }) {
   const gradeId = grade?._id;
   const enabled = open && gradeId;
 
-  const { data: streamsData, isLoading: streamsLoading } = useGetStreamsByGradeQuery(gradeId, {
-    skip: !enabled,
-  });
-  const streams = streamsData?.streams || [];
+  const { data: streamsData, isLoading: streamsLoading } = useGetStreamsByGradeQuery(
+    gradeId,
+    { skip: !enabled }
+  );
+
+  const streams = useMemo(
+    () => sortStreams(streamsData?.streams || []),
+    [streamsData]
+  );
 
   const [selectedStreamId, setSelectedStreamId] = useState("");
+  const [newSubject, setNewSubject] = useState("");
+  const [selectedExistingSubject, setSelectedExistingSubject] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editValue, setEditValue] = useState("");
 
-  const { data: streamSubjectsData, isLoading: streamSubjectsLoading } = useGetStreamSubjectsQuery(
-    { gradeId, streamId: selectedStreamId },
-    { skip: !enabled || !selectedStreamId }
+  useEffect(() => {
+    if (open && streams.length > 0 && !selectedStreamId) {
+      setSelectedStreamId(streams[0]._id);
+    }
+
+    if (!open) {
+      setSelectedStreamId("");
+      setNewSubject("");
+      setSelectedExistingSubject("");
+      setEditId(null);
+      setEditValue("");
+    }
+  }, [open, streams, selectedStreamId]);
+
+  useEffect(() => {
+    setNewSubject("");
+    setSelectedExistingSubject("");
+    setEditId(null);
+    setEditValue("");
+  }, [selectedStreamId]);
+
+  const selectedStream = useMemo(
+    () => streams.find((s) => s._id === selectedStreamId) || null,
+    [streams, selectedStreamId]
   );
+
+  const { data: streamSubjectsData, isLoading: streamSubjectsLoading } =
+    useGetStreamSubjectsQuery(
+      { gradeId, streamId: selectedStreamId },
+      { skip: !enabled || !selectedStreamId }
+    );
 
   const subjects = streamSubjectsData?.subjects || [];
 
@@ -216,14 +293,36 @@ function StreamSubjectsModal({ open, grade, onClose }) {
   const [updateStreamSubject] = useUpdateStreamSubjectMutation();
   const [deleteStreamSubject] = useDeleteStreamSubjectMutation();
 
-  const [newSubject, setNewSubject] = useState("");
-  const [editId, setEditId] = useState(null);
-  const [editValue, setEditValue] = useState("");
+  const assignableSubjects = useMemo(() => {
+    const currentKeys = new Set(
+      (subjects || []).map((s) => String(s?.subject || "").trim().toLowerCase())
+    );
 
-  const add = async () => {
-    if (!selectedStreamId) return alert("Select a stream");
+    const fromOtherStreams = [];
+
+    for (const st of streams) {
+      if (st._id === selectedStreamId) continue;
+
+      for (const sub of st?.subjects || []) {
+        const subject = String(sub?.subject || "").trim();
+        const key = subject.toLowerCase();
+        if (!subject || currentKeys.has(key)) continue;
+        fromOtherStreams.push({ subject });
+      }
+    }
+
+    return uniqueSubjects(fromOtherStreams);
+  }, [streams, selectedStreamId, subjects]);
+
+  const addNewSubject = async () => {
+    if (!selectedStreamId) {
+      alert("Select a stream");
+      return;
+    }
+
     const name = newSubject.trim();
     if (!name) return;
+
     try {
       await createStreamSubject({
         gradeId,
@@ -231,6 +330,30 @@ function StreamSubjectsModal({ open, grade, onClose }) {
         subject: name,
       }).unwrap();
       setNewSubject("");
+    } catch (e) {
+      alert(String(e?.data?.message || e?.error || "Failed"));
+    }
+  };
+
+  const assignExistingSubject = async () => {
+    if (!selectedStreamId) {
+      alert("Select a stream");
+      return;
+    }
+
+    const subject = String(selectedExistingSubject || "").trim();
+    if (!subject) {
+      alert("Select existing subject");
+      return;
+    }
+
+    try {
+      await createStreamSubject({
+        gradeId,
+        streamId: selectedStreamId,
+        subject,
+      }).unwrap();
+      setSelectedExistingSubject("");
     } catch (e) {
       alert(String(e?.data?.message || e?.error || "Failed"));
     }
@@ -244,6 +367,7 @@ function StreamSubjectsModal({ open, grade, onClose }) {
   const saveEdit = async () => {
     const name = editValue.trim();
     if (!name) return;
+
     try {
       await updateStreamSubject({
         gradeId,
@@ -261,6 +385,7 @@ function StreamSubjectsModal({ open, grade, onClose }) {
   const remove = async (subjectId) => {
     const ok = window.confirm("Delete stream subject?");
     if (!ok) return;
+
     try {
       await deleteStreamSubject({
         gradeId,
@@ -273,9 +398,12 @@ function StreamSubjectsModal({ open, grade, onClose }) {
   };
 
   return (
-    <Modal open={open} title={`Grade ${grade?.grade} Stream Subjects`} onClose={onClose}>
+    <Modal open={open} title="A/L Stream Subjects" onClose={onClose} maxWidth="max-w-2xl">
       <div>
-        <label className="block text-sm font-medium text-gray-700">Select Stream</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Select Stream
+        </label>
+
         {streamsLoading ? (
           <div className="mt-2 text-sm text-gray-500">Loading streams...</div>
         ) : (
@@ -287,33 +415,74 @@ function StreamSubjectsModal({ open, grade, onClose }) {
             <option value="">Select Stream</option>
             {streams.map((st) => (
               <option key={st._id} value={st._id}>
-                {st.stream}
+                {getStreamLabel(st.stream)}
               </option>
             ))}
           </select>
         )}
       </div>
 
-      <div className="mt-3 flex gap-2">
-        <input
-          className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-          placeholder="New subject"
-          value={newSubject}
-          onChange={(e) => setNewSubject(e.target.value)}
-          disabled={!selectedStreamId}
-        />
-        <button
-          onClick={add}
-          disabled={!selectedStreamId}
-          className="rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-        >
-          Add
-        </button>
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Create New Subject
+          </label>
+          <input
+            className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+            placeholder="Type new subject"
+            value={newSubject}
+            onChange={(e) => setNewSubject(e.target.value)}
+            disabled={!selectedStreamId}
+          />
+          <button
+            type="button"
+            onClick={addNewSubject}
+            disabled={!selectedStreamId}
+            className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+          >
+            Add New Subject
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Assign Existing Subject From Other Stream
+          </label>
+          <select
+            className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+            value={selectedExistingSubject}
+            onChange={(e) => setSelectedExistingSubject(e.target.value)}
+            disabled={!selectedStreamId}
+          >
+            <option value="">Select existing subject</option>
+            {assignableSubjects.map((subject) => (
+              <option key={subject} value={subject}>
+                {subject}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={assignExistingSubject}
+            disabled={!selectedStreamId}
+            className="mt-3 w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+          >
+            Assign Subject
+          </button>
+        </div>
       </div>
+
+      {selectedStream && (
+        <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          Selected Stream: <span className="font-semibold">{getStreamLabel(selectedStream.stream)}</span>
+        </div>
+      )}
 
       <div className="mt-4 space-y-2">
         {!selectedStreamId ? (
-          <div className="text-sm text-gray-500">Select a stream to view subjects</div>
+          <div className="text-sm text-gray-500">
+            Select a stream to view subjects
+          </div>
         ) : streamSubjectsLoading ? (
           <div className="text-sm text-gray-500">Loading...</div>
         ) : subjects.length === 0 ? (
@@ -331,7 +500,9 @@ function StreamSubjectsModal({ open, grade, onClose }) {
                   onChange={(e) => setEditValue(e.target.value)}
                 />
               ) : (
-                <span className="text-sm font-medium text-gray-800">{s.subject}</span>
+                <span className="text-sm font-medium text-gray-800">
+                  {s.subject}
+                </span>
               )}
 
               <div className="flex gap-2">
@@ -370,77 +541,95 @@ function StreamSubjectsModal({ open, grade, onClose }) {
 const GradeSubjectPage = () => {
   const navigate = useNavigate();
   const { data, isLoading, refetch } = useGetGradesQuery();
+
   const grades = data?.grades || [];
 
   const [createGrade] = useCreateGradeMutation();
   const [deleteGrade] = useDeleteGradeMutation();
   const [createSubject] = useCreateSubjectMutation();
-  const [createStream] = useCreateStreamMutation();
 
-  // top modal
   const [topOpen, setTopOpen] = useState(false);
   const [topGradeNumber, setTopGradeNumber] = useState("");
   const [topName, setTopName] = useState("");
 
-  // row add modal
   const [addOpen, setAddOpen] = useState(false);
   const [addGradeDoc, setAddGradeDoc] = useState(null);
   const [addValue, setAddValue] = useState("");
 
-  // view modals
   const [subjectsOpen, setSubjectsOpen] = useState(false);
-  const [streamSubjectsOpen, setStreamSubjectsOpen] = useState(false);
+  const [alSubjectsOpen, setAlSubjectsOpen] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState(null);
 
-  // pagination
   const [page1, setPage1] = useState(1);
-  const [page2, setPage2] = useState(1);
 
   const grade1to11 = useMemo(
-    () => grades.filter((g) => g.grade >= 1 && g.grade <= 11),
+    () =>
+      grades
+        .filter((g) => g.flowType === "normal")
+        .sort((a, b) => Number(a.grade) - Number(b.grade)),
     [grades]
   );
-  const grade12to13 = useMemo(
-    () => grades.filter((g) => g.grade === 12 || g.grade === 13),
+
+  const alGrade = useMemo(
+    () => grades.find((g) => g.flowType === "al") || null,
     [grades]
   );
 
   const totalPages1 = Math.max(1, Math.ceil(grade1to11.length / ROWS_PER_PAGE));
-  const totalPages2 = Math.max(1, Math.ceil(grade12to13.length / ROWS_PER_PAGE));
 
   const rows1 = useMemo(() => {
     const start = (page1 - 1) * ROWS_PER_PAGE;
     return grade1to11.slice(start, start + ROWS_PER_PAGE);
   }, [grade1to11, page1]);
 
-  const rows2 = useMemo(() => {
-    const start = (page2 - 1) * ROWS_PER_PAGE;
-    return grade12to13.slice(start, start + ROWS_PER_PAGE);
-  }, [grade12to13, page2]);
-
   const submitTop = async () => {
-    const g = Number(topGradeNumber);
-    if (!g) return alert("Select grade");
+    const raw = String(topGradeNumber || "").trim();
 
-    const name = topName.trim();
-    if (!name) return alert(is12or13(g) ? "Stream required" : "Subject required");
+    if (!raw) {
+      alert("Select grade");
+      return;
+    }
 
     try {
-      let gradeDoc = grades.find((x) => x.grade === g);
+      if (raw === "al") {
+        await createGrade({ grade: "al", flowType: "al" }).unwrap();
+        setTopOpen(false);
+        setTopGradeNumber("");
+        setTopName("");
+        return;
+      }
+
+      const g = Number(raw);
+      if (!g || g < 1 || g > 11) {
+        alert("Select valid grade");
+        return;
+      }
+
+      let gradeDoc = grades.find(
+        (x) => x.flowType === "normal" && Number(x.grade) === g
+      );
 
       if (!gradeDoc) {
-        const res = await createGrade({ grade: g }).unwrap();
+        const res = await createGrade({
+          grade: g,
+          flowType: "normal",
+        }).unwrap();
         gradeDoc = res?.grade;
         await refetch();
       }
 
-      if (!gradeDoc?._id) return alert("Grade create failed");
-
-      if (is12or13(g)) {
-        await createStream({ gradeId: gradeDoc._id, stream: name }).unwrap();
-      } else {
-        await createSubject({ gradeId: gradeDoc._id, subject: name }).unwrap();
+      if (!gradeDoc?._id) {
+        alert("Grade create failed");
+        return;
       }
+
+      const name = topName.trim();
+      if (!name) {
+        alert("Subject required");
+        return;
+      }
+
+      await createSubject({ gradeId: gradeDoc._id, subject: name }).unwrap();
 
       setTopOpen(false);
       setTopGradeNumber("");
@@ -458,17 +647,19 @@ const GradeSubjectPage = () => {
 
   const submitAddForRow = async () => {
     if (!addGradeDoc) return;
-    const g = Number(addGradeDoc.grade);
 
     const name = addValue.trim();
-    if (!name) return alert(is12or13(g) ? "Stream required" : "Subject required");
+    if (!name) {
+      alert("Subject required");
+      return;
+    }
 
     try {
-      if (is12or13(g)) {
-        await createStream({ gradeId: addGradeDoc._id, stream: name }).unwrap();
-      } else {
-        await createSubject({ gradeId: addGradeDoc._id, subject: name }).unwrap();
-      }
+      await createSubject({
+        gradeId: addGradeDoc._id,
+        subject: name,
+      }).unwrap();
+
       setAddOpen(false);
       setAddGradeDoc(null);
       setAddValue("");
@@ -478,8 +669,9 @@ const GradeSubjectPage = () => {
   };
 
   const removeGrade = async (g) => {
-    const ok = window.confirm(`Delete Grade ${g.grade}?`);
+    const ok = window.confirm(`Delete ${g?.title || `Grade ${g?.grade}`}?`);
     if (!ok) return;
+
     try {
       await deleteGrade({ gradeId: g._id }).unwrap();
       await refetch();
@@ -497,7 +689,7 @@ const GradeSubjectPage = () => {
               Grade & Subject Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage grades, subjects, streams, and stream subjects.
+              Manage grades, subjects, and A/L stream subjects.
             </p>
           </div>
 
@@ -571,7 +763,7 @@ const GradeSubjectPage = () => {
                       <tr key={g._id} className="hover:bg-gray-50/70">
                         <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                           <div className="truncate font-medium text-gray-800">
-                            Grade {g.grade}
+                            {g.title || `Grade ${g.grade}`}
                           </div>
                         </td>
 
@@ -663,7 +855,7 @@ const GradeSubjectPage = () => {
 
         {/* TABLE 2 */}
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-800">Grades 12 - 13</h2>
+          <h2 className="text-lg font-semibold text-gray-800">A/L Flow</h2>
 
           <div className="mt-3 overflow-hidden border border-gray-200 bg-white">
             <div className="w-full overflow-x-auto">
@@ -671,10 +863,10 @@ const GradeSubjectPage = () => {
                 <thead>
                   <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
                     <th className="w-[20%] border-b border-r border-gray-200 px-4 py-3">
-                      Grade
+                      Flow
                     </th>
                     <th className="w-[35%] border-b border-r border-gray-200 px-4 py-3">
-                      Stream
+                      Streams
                     </th>
                     <th className="w-[20%] border-b border-r border-gray-200 px-4 py-3 text-center">
                       Subjects
@@ -692,77 +884,24 @@ const GradeSubjectPage = () => {
                         Loading...
                       </td>
                     </tr>
-                  ) : rows2.length === 0 ? (
+                  ) : !alGrade ? (
                     <tr>
                       <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                        No grades
+                        A/L flow not created yet
                       </td>
                     </tr>
                   ) : (
-                    rows2.map((g) => (
-                      <Grade12Row
-                        key={g._id}
-                        grade={g}
-                        onAdd={() => openAddForRow(g)}
-                        onDelete={() => removeGrade(g)}
-                        onViewSubjects={() => {
-                          setSelectedGrade(g);
-                          setStreamSubjectsOpen(true);
-                        }}
-                      />
-                    ))
+                    <ALRow
+                      grade={alGrade}
+                      onManageSubjects={() => {
+                        setSelectedGrade(alGrade);
+                        setAlSubjectsOpen(true);
+                      }}
+                      onDelete={() => removeGrade(alGrade)}
+                    />
                   )}
                 </tbody>
               </table>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                {grade12to13.length === 0
-                  ? "0 to 0 of 0"
-                  : `${(page2 - 1) * ROWS_PER_PAGE + 1} to ${Math.min(
-                      page2 * ROWS_PER_PAGE,
-                      grade12to13.length
-                    )} of ${grade12to13.length}`}
-              </span>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage2(1)}
-                  disabled={page2 === 1}
-                  className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 disabled:opacity-50"
-                >
-                  {"<<"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage2((p) => Math.max(1, p - 1))}
-                  disabled={page2 === 1}
-                  className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 disabled:opacity-50"
-                >
-                  {"<"}
-                </button>
-                <span className="px-2 text-sm font-medium text-gray-700">
-                  Page {page2} of {totalPages2}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage2((p) => Math.min(totalPages2, p + 1))}
-                  disabled={page2 === totalPages2}
-                  className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 disabled:opacity-50"
-                >
-                  {">"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage2(totalPages2)}
-                  disabled={page2 === totalPages2}
-                  className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 disabled:opacity-50"
-                >
-                  {">>"}
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -770,7 +909,7 @@ const GradeSubjectPage = () => {
         {/* TOP ADD MODAL */}
         <Modal
           open={topOpen}
-          title="Add Grade & Subject / Stream"
+          title="Add Grade / A/L Flow"
           onClose={() => {
             setTopOpen(false);
             setTopGradeNumber("");
@@ -793,22 +932,37 @@ const GradeSubjectPage = () => {
                     Grade {g}
                   </option>
                 ))}
+                <option value="al">A/L</option>
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {is12or13(Number(topGradeNumber)) ? "Stream Name" : "Subject Name"}
-              </label>
-              <input
-                value={topName}
-                onChange={(e) => setTopName(e.target.value)}
-                className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                placeholder={
-                  is12or13(Number(topGradeNumber)) ? "e.g. Maths" : "e.g. Science"
-                }
-              />
-            </div>
+            {topGradeNumber && topGradeNumber !== "al" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Subject Name
+                </label>
+                <input
+                  value={topName}
+                  onChange={(e) => setTopName(e.target.value)}
+                  className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="e.g. Science"
+                />
+              </div>
+            )}
+
+            {topGradeNumber === "al" && (
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                A/L will be created as one single flow with predefined streams:
+                <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                  <div>• Physical Science</div>
+                  <div>• Biological Science</div>
+                  <div>• Commerce</div>
+                  <div>• Arts</div>
+                  <div>• Technology</div>
+                  <div>• Common</div>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-1">
               <button
@@ -831,12 +985,12 @@ const GradeSubjectPage = () => {
           </div>
         </Modal>
 
-        {/* ROW ADD MODAL */}
+        {/* ADD SUBJECT MODAL */}
         <Modal
           open={addOpen}
           title={
             addGradeDoc
-              ? `Add ${is12or13(addGradeDoc.grade) ? "Stream" : "Subject"} (Grade ${addGradeDoc.grade})`
+              ? `Add Subject (${addGradeDoc.title || `Grade ${addGradeDoc.grade}`})`
               : "Add"
           }
           onClose={() => {
@@ -848,17 +1002,13 @@ const GradeSubjectPage = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                {addGradeDoc && is12or13(addGradeDoc.grade) ? "Stream Name" : "Subject Name"}
+                Subject Name
               </label>
               <input
                 value={addValue}
                 onChange={(e) => setAddValue(e.target.value)}
                 className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                placeholder={
-                  addGradeDoc && is12or13(addGradeDoc.grade)
-                    ? "e.g. Maths"
-                    : "e.g. Science"
-                }
+                placeholder="e.g. Science"
               />
             </div>
 
@@ -883,7 +1033,7 @@ const GradeSubjectPage = () => {
           </div>
         </Modal>
 
-        {/* View Modals */}
+        {/* VIEW MODALS */}
         <GradeSubjectsModal
           open={subjectsOpen}
           grade={selectedGrade}
@@ -893,11 +1043,11 @@ const GradeSubjectPage = () => {
           }}
         />
 
-        <StreamSubjectsModal
-          open={streamSubjectsOpen}
+        <ALStreamSubjectsModal
+          open={alSubjectsOpen}
           grade={selectedGrade}
           onClose={() => {
-            setStreamSubjectsOpen(false);
+            setAlSubjectsOpen(false);
             setSelectedGrade(null);
           }}
         />
@@ -906,52 +1056,17 @@ const GradeSubjectPage = () => {
   );
 };
 
-/* --------------------- Grade 12/13 Row Component --------------------- */
-function Grade12Row({ grade, onAdd, onDelete, onViewSubjects }) {
+/* --------------------- A/L ROW --------------------- */
+function ALRow({ grade, onManageSubjects, onDelete }) {
   const { data, isLoading } = useGetStreamsByGradeQuery(grade._id);
-  const streams = data?.streams || [];
-
-  const [updateStream] = useUpdateStreamMutation();
-  const [deleteStream] = useDeleteStreamMutation();
-
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState("");
-
-  const startEdit = (st) => {
-    setEditingId(st._id);
-    setEditValue(st.stream);
-  };
-
-  const saveEdit = async () => {
-    const name = editValue.trim();
-    if (!name) return;
-    try {
-      await updateStream({
-        gradeId: grade._id,
-        streamId: editingId,
-        stream: name,
-      }).unwrap();
-      setEditingId(null);
-      setEditValue("");
-    } catch (e) {
-      alert(String(e?.data?.message || e?.error || "Failed"));
-    }
-  };
-
-  const removeStream = async (streamId) => {
-    const ok = window.confirm("Delete stream?");
-    if (!ok) return;
-    try {
-      await deleteStream({ gradeId: grade._id, streamId }).unwrap();
-    } catch (e) {
-      alert(String(e?.data?.message || e?.error || "Failed"));
-    }
-  };
+  const streams = useMemo(() => sortStreams(data?.streams || []), [data]);
 
   return (
     <tr className="hover:bg-gray-50/70">
       <td className="border-b border-r border-gray-200 px-4 py-4 align-top">
-        <div className="truncate font-medium text-gray-800">Grade {grade.grade}</div>
+        <div className="truncate font-medium text-gray-800">
+          {grade?.title || "A/L"}
+        </div>
       </td>
 
       <td className="border-b border-r border-gray-200 px-4 py-4 align-top">
@@ -966,59 +1081,14 @@ function Grade12Row({ grade, onAdd, onDelete, onViewSubjects }) {
                 key={st._id}
                 className="flex items-center justify-between gap-2 border border-gray-200 bg-white px-3 py-2"
               >
-                {editingId === st._id ? (
-                  <input
-                    className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                  />
-                ) : (
-                  <span className="text-sm font-medium text-gray-800">{st.stream}</span>
-                )}
+                <span className="text-sm font-medium text-gray-800">
+                  {getStreamLabel(st.stream)}
+                </span>
 
-                <div className="flex gap-2">
-                  {editingId === st._id ? (
-                    <button
-                      onClick={saveEdit}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
-                    >
-                      Save
-                    </button>
-                  ) : (
-                    <IconButton title="Edit" onClick={() => startEdit(st)}>
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M12 20h9" />
-                        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                      </svg>
-                    </IconButton>
-                  )}
-
-                  <IconButton title="Delete" onClick={() => removeStream(st._id)}>
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                  </IconButton>
-                </div>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">
+                  {(st.subjects || []).length} subject
+                  {(st.subjects || []).length === 1 ? "" : "s"}
+                </span>
               </div>
             ))}
           </div>
@@ -1027,7 +1097,7 @@ function Grade12Row({ grade, onAdd, onDelete, onViewSubjects }) {
 
       <td className="border-b border-r border-gray-200 px-4 py-4 align-top text-center">
         <button
-          onClick={onViewSubjects}
+          onClick={onManageSubjects}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
         >
           View
@@ -1037,18 +1107,13 @@ function Grade12Row({ grade, onAdd, onDelete, onViewSubjects }) {
       <td className="border-b border-gray-200 px-4 py-4 align-top">
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button
-            onClick={onAdd}
+            onClick={onManageSubjects}
             className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700"
           >
-            Add Stream
+            Manage Subjects
           </button>
 
-          <button
-            onClick={onDelete}
-            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
-          >
-            Delete Grade
-          </button>
+        
         </div>
       </td>
     </tr>

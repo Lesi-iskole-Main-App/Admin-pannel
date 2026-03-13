@@ -72,6 +72,23 @@ const buildScheduledAt = (date, time) => {
   return dt.toISOString();
 };
 
+const getNormalizedZoomLinks = (live) => {
+  if (!live) return [""];
+
+  if (Array.isArray(live.zoomLinks) && live.zoomLinks.length > 0) {
+    const cleaned = live.zoomLinks
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+    return cleaned.length ? cleaned : [""];
+  }
+
+  if (live.zoomLink) {
+    return [String(live.zoomLink).trim()];
+  }
+
+  return [""];
+};
+
 const LivePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -120,7 +137,7 @@ const LivePage = () => {
 
   const [form, setForm] = useState({
     classId: "",
-    zoomLink: "",
+    zoomLinks: [""],
     date: "",
     time: "",
   });
@@ -139,16 +156,23 @@ const LivePage = () => {
   const gradeName = useMemo(() => {
     if (selectedClass?.gradeNo) return `Grade ${selectedClass.gradeNo}`;
     if (selectedClass?.grade) return `Grade ${selectedClass.grade}`;
+    if (selectedClass?.gradeId?.grade) return `Grade ${selectedClass.gradeId.grade}`;
     return "—";
   }, [selectedClass]);
 
   const subjectName = useMemo(() => {
-    return selectedClass?.subjectName || selectedClass?.subject || "—";
+    return (
+      selectedClass?.subjectName ||
+      selectedClass?.subjectId?.subject ||
+      selectedClass?.streamSubjectId?.subject ||
+      selectedClass?.subject ||
+      "—"
+    );
   }, [selectedClass]);
 
   useEffect(() => {
     if (action === "create") {
-      setForm({ classId: "", zoomLink: "", date: "", time: "" });
+      setForm({ classId: "", zoomLinks: [""], date: "", time: "" });
     }
   }, [action]);
 
@@ -159,7 +183,7 @@ const LivePage = () => {
 
     setForm({
       classId: String(live?.classId?._id || live?.classId || ""),
-      zoomLink: live?.zoomLink || "",
+      zoomLinks: getNormalizedZoomLinks(live),
       date: toDateInput(live?.scheduledAt),
       time: toTimeInput(live?.scheduledAt),
     });
@@ -174,6 +198,7 @@ const LivePage = () => {
         dt && !Number.isNaN(dt.getTime()) ? dt.toTimeString().slice(0, 5) : "—";
 
       const details = l?.classDetails || {};
+      const zoomLinks = getNormalizedZoomLinks(l);
 
       return {
         _id: l._id,
@@ -182,7 +207,7 @@ const LivePage = () => {
         teacherName: (details?.teachers || []).join(", ") || "—",
         grade: details?.grade ? `Grade ${details.grade}` : "—",
         subject: details?.subject || "—",
-        zoomLink: l?.zoomLink || "—",
+        zoomLinks,
         date,
         time,
       };
@@ -227,9 +252,38 @@ const LivePage = () => {
     }
   };
 
+  const handleZoomLinkChange = (index, value) => {
+    setForm((prev) => {
+      const next = [...prev.zoomLinks];
+      next[index] = value;
+      return { ...prev, zoomLinks: next };
+    });
+  };
+
+  const addZoomLinkField = () => {
+    setForm((prev) => ({
+      ...prev,
+      zoomLinks: [...prev.zoomLinks, ""],
+    }));
+  };
+
+  const removeZoomLinkField = (index) => {
+    setForm((prev) => {
+      const next = prev.zoomLinks.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        zoomLinks: next.length ? next : [""],
+      };
+    });
+  };
+
+  const cleanedZoomLinks = useMemo(() => {
+    return (form.zoomLinks || []).map((x) => String(x || "").trim()).filter(Boolean);
+  }, [form.zoomLinks]);
+
   const submitCreate = async () => {
-    if (!form.classId || !form.zoomLink || !form.date || !form.time) {
-      alert("class, zoom link, date, time are required");
+    if (!form.classId || !form.date || !form.time || cleanedZoomLinks.length === 0) {
+      alert("class, at least one zoom link, date, time are required");
       return;
     }
 
@@ -238,7 +292,7 @@ const LivePage = () => {
         classId: form.classId,
         title: `${selectedClass?.className || "Live"}`,
         scheduledAt: buildScheduledAt(form.date, form.time),
-        zoomLink: form.zoomLink,
+        zoomLinks: cleanedZoomLinks,
       }).unwrap();
 
       goList();
@@ -251,8 +305,8 @@ const LivePage = () => {
   const submitUpdate = async () => {
     if (!liveId || !classIdFromQuery) return;
 
-    if (!form.classId || !form.zoomLink || !form.date || !form.time) {
-      alert("class, zoom link, date, time are required");
+    if (!form.classId || !form.date || !form.time || cleanedZoomLinks.length === 0) {
+      alert("class, at least one zoom link, date, time are required");
       return;
     }
 
@@ -263,7 +317,7 @@ const LivePage = () => {
         body: {
           title: `${selectedClass?.className || "Live"}`,
           scheduledAt: buildScheduledAt(form.date, form.time),
-          zoomLink: form.zoomLink,
+          zoomLinks: cleanedZoomLinks,
         },
       }).unwrap();
 
@@ -380,18 +434,43 @@ const LivePage = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Zoom Link
-                  </label>
-                  <input
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.zoomLink}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, zoomLink: e.target.value }))
-                    }
-                    placeholder="Enter zoom link"
-                  />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Zoom Links
+                    </label>
+
+                    <button
+                      type="button"
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
+                      onClick={addZoomLinkField}
+                    >
+                      + Add Link
+                    </button>
+                  </div>
+
+                  {form.zoomLinks.map((link, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={link}
+                        onChange={(e) =>
+                          handleZoomLinkChange(index, e.target.value)
+                        }
+                        placeholder={`Enter zoom link ${index + 1}`}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removeZoomLinkField(index)}
+                        disabled={form.zoomLinks.length === 1}
+                        className="inline-flex h-10 min-w-[42px] items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -515,17 +594,43 @@ const LivePage = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Zoom Link
-                  </label>
-                  <input
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.zoomLink}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, zoomLink: e.target.value }))
-                    }
-                  />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Zoom Links
+                    </label>
+
+                    <button
+                      type="button"
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
+                      onClick={addZoomLinkField}
+                    >
+                      + Add Link
+                    </button>
+                  </div>
+
+                  {form.zoomLinks.map((link, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={link}
+                        onChange={(e) =>
+                          handleZoomLinkChange(index, e.target.value)
+                        }
+                        placeholder={`Enter zoom link ${index + 1}`}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removeZoomLinkField(index)}
+                        disabled={form.zoomLinks.length === 1}
+                        className="inline-flex h-10 min-w-[42px] items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -599,7 +704,7 @@ const LivePage = () => {
                     Subject
                   </th>
                   <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">
-                    Zoom Link
+                    Zoom Links
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Date
@@ -654,15 +759,20 @@ const LivePage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        {r.zoomLink !== "—" ? (
-                          <a
-                            href={r.zoomLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="truncate font-medium text-blue-600 hover:underline"
-                          >
-                            Open Link
-                          </a>
+                        {r.zoomLinks?.length ? (
+                          <div className="flex flex-col gap-1">
+                            {r.zoomLinks.map((link, idx) => (
+                              <a
+                                key={`${r._id}-${idx}`}
+                                href={link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="truncate font-medium text-blue-600 hover:underline"
+                              >
+                                Open Link {idx + 1}
+                              </a>
+                            ))}
+                          </div>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}

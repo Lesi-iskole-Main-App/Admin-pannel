@@ -37,7 +37,6 @@ import { studentApi } from "./studentApi";
 
 import { recordingApi } from "./recordingApi";
 
-// ✅ NEW
 import { adminResultReportApi } from "./adminResultReportApi";
 
 export const store = configureStore({
@@ -66,8 +65,6 @@ export const store = configureStore({
     [uploadApi.reducerPath]: uploadApi.reducer,
     [studentApi.reducerPath]: studentApi.reducer,
     [recordingApi.reducerPath]: recordingApi.reducer,
-
-    // ✅ NEW
     [adminResultReportApi.reducerPath]: adminResultReportApi.reducer,
   },
 
@@ -86,8 +83,6 @@ export const store = configureStore({
       uploadApi.middleware,
       studentApi.middleware,
       recordingApi.middleware,
-
-      // ✅ NEW
       adminResultReportApi.middleware
     ),
 });

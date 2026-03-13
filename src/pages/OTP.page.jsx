@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useVerifyPhoneOtpMutation,
   useResendVerifyOtpMutation,
   useForgotPasswordSendOtpMutation,
 } from "../api/authApi";
+
+const OTP_LENGTH = 6;
 
 const OTPPage = () => {
   const navigate = useNavigate();
@@ -14,12 +16,13 @@ const OTPPage = () => {
   const phoneFromUrl = params.get("phone") || "";
 
   const [phone, setPhone] = useState(phoneFromUrl);
-
-  const [digits, setDigits] = useState(["", "", "", "", "", ""]);
-  const code = useMemo(() => digits.join(""), [digits]);
-
+  const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+
+  const inputsRef = useRef([]);
+
+  const code = useMemo(() => digits.join(""), [digits]);
 
   const [verifyPhoneOtp, { isLoading: verifying }] =
     useVerifyPhoneOtpMutation();
@@ -28,56 +31,82 @@ const OTPPage = () => {
   const [forgotSendOtp, { isLoading: sendingForgotOtp }] =
     useForgotPasswordSendOtpMutation();
 
-  const setAt = (idx, val) => {
+  const updateDigit = (index, value) => {
+    const clean = String(value || "").replace(/\D/g, "");
+
     setError("");
     setMsg("");
-    const v = String(val || "").replace(/\D/g, "").slice(0, 1);
-    setDigits((prev) => prev.map((x, i) => (i === idx ? v : x)));
+
+    if (!clean) {
+      setDigits((prev) => prev.map((item, i) => (i === index ? "" : item)));
+      return;
+    }
+
+    const nextDigits = [...digits];
+    let cursor = index;
+
+    for (const char of clean.slice(0, OTP_LENGTH - index)) {
+      nextDigits[cursor] = char;
+      cursor += 1;
+      if (cursor >= OTP_LENGTH) break;
+    }
+
+    setDigits(nextDigits);
+
+    const nextIndex = Math.min(index + clean.length, OTP_LENGTH - 1);
+    if (nextIndex < OTP_LENGTH) {
+      inputsRef.current[nextIndex]?.focus();
+    }
   };
 
-  // ✅ Flow 2 step: user enters phone then click Send OTP
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      inputsRef.current[index - 1]?.focus();
+    }
+  };
+
   const handleSendForgotOtp = async () => {
     setError("");
     setMsg("");
 
-    if (!phone) {
+    if (!phone.trim()) {
       setError("Phone number is required");
       return;
     }
 
     try {
-      // backend expects identifier
       await forgotSendOtp({ identifier: phone }).unwrap();
-      setMsg("OTP sent. Check WhatsApp/Email.");
+      setMsg("OTP sent. Check your WhatsApp and SMS.");
     } catch (err) {
       setError(err?.data?.message || "Failed to send OTP");
     }
   };
 
-  // ✅ Verify OTP
   const handleVerify = async () => {
     setError("");
     setMsg("");
 
-    if (!phone) {
+    if (!phone.trim()) {
       setError("Phone number is required");
       return;
     }
 
-    if (code.length !== 6) {
+    if (code.length !== OTP_LENGTH) {
       setError("Enter 6-digit OTP");
       return;
     }
 
     try {
-      // ✅ Flow 1: signup verification uses /whatsapp/verify-code
       if (flow === "signup") {
-        await verifyPhoneOtp({ phonenumber: phone, code }).unwrap();
+        await verifyPhoneOtp({
+          phonenumber: phone,
+          code,
+        }).unwrap();
+
         navigate("/signin");
         return;
       }
 
-      // ✅ Flow 2: go reset page and pass phone + code
       navigate(
         `/reset-password?identifier=${encodeURIComponent(
           phone
@@ -92,14 +121,14 @@ const OTPPage = () => {
     setError("");
     setMsg("");
 
-    if (!phone) {
+    if (!phone.trim()) {
       setError("Phone number is required");
       return;
     }
 
     try {
       await resendVerifyOtp({ phonenumber: phone }).unwrap();
-      setMsg("OTP resent. Check WhatsApp/Email.");
+      setMsg("OTP resent. Check your WhatsApp and SMS.");
     } catch (err) {
       setError(err?.data?.message || "Resend failed");
     }
@@ -111,8 +140,9 @@ const OTPPage = () => {
         <h2 className="text-2xl font-bold text-center text-blue-800 mb-2">
           OTP Verification
         </h2>
+
         <p className="text-sm text-gray-500 text-center mb-6">
-          Check your WhatsApp and enter the verification code
+          Check your WhatsApp and SMS, then enter the verification code
         </p>
 
         {error && (
@@ -120,13 +150,13 @@ const OTPPage = () => {
             {error}
           </div>
         )}
+
         {msg && (
           <div className="mb-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm">
             {msg}
           </div>
         )}
 
-        {/* ✅ Flow 2: ask phone number + Send OTP */}
         {flow === "forgot" && (
           <div className="mb-4">
             <label className="block text-gray-700 text-sm mb-2">
@@ -152,13 +182,18 @@ const OTPPage = () => {
         )}
 
         <div className="flex justify-between gap-2 mb-6">
-          {digits.map((d, i) => (
+          {digits.map((digit, index) => (
             <input
-              key={i}
+              key={index}
+              ref={(el) => {
+                inputsRef.current[index] = el;
+              }}
               type="text"
+              inputMode="numeric"
               maxLength={1}
-              value={d}
-              onChange={(e) => setAt(i, e.target.value)}
+              value={digit}
+              onChange={(e) => updateDigit(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
               className="w-12 h-12 text-center text-lg font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           ))}
@@ -173,7 +208,6 @@ const OTPPage = () => {
           {verifying ? "Verifying..." : "Verify"}
         </button>
 
-        {/* ✅ Only signup flow has resend */}
         {flow === "signup" && (
           <button
             type="button"

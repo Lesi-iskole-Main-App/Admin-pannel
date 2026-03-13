@@ -54,7 +54,11 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
   );
 };
 
-const isALGrade = (gradeNo) => Number(gradeNo) === 12 || Number(gradeNo) === 13;
+const isALGrade = (gradeLike) =>
+  gradeLike?.flowType === "al" ||
+  gradeLike === "al" ||
+  Number(gradeLike) === 12 ||
+  Number(gradeLike) === 13;
 
 const ClassPage = () => {
   const navigate = useNavigate();
@@ -139,15 +143,23 @@ const ClassPage = () => {
       const createdDate = created ? created.toISOString().slice(0, 10) : "-";
       const createdTime = created ? created.toTimeString().slice(0, 5) : "-";
 
-      const gradeNo = Number(c?.gradeNo || c?.gradeId?.grade || 0);
-      const subjectDisplay = isALGrade(gradeNo)
-        ? [c?.streamName, c?.subjectName].filter(Boolean).join(" / ") || "—"
-        : c?.subjectName || "—";
+      const gradeDisplay =
+        c?.gradeLabel ||
+        (c?.gradeId?.flowType === "al"
+          ? "A/L"
+          : c?.gradeId?.grade
+          ? `Grade ${c.gradeId.grade}`
+          : "—");
+
+      const subjectDisplay =
+        c?.gradeId?.flowType === "al"
+          ? [c?.streamName, c?.subjectName].filter(Boolean).join(" / ") || "—"
+          : c?.subjectName || "—";
 
       return {
         _id: c._id,
         className: c.className || "—",
-        grade: gradeNo ? `Grade ${gradeNo}` : "—",
+        grade: gradeDisplay,
         subject: subjectDisplay,
         teacherName: teacherNames,
         createdDate,
@@ -204,7 +216,7 @@ const ClassPage = () => {
   };
 
   // ======= form =======
-  const [form, setForm] = useState({
+  const emptyForm = {
     className: "",
     gradeId: "",
     subjectId: "",
@@ -213,14 +225,15 @@ const ClassPage = () => {
     teacherIds: [],
     imageUrl: "",
     imagePublicId: "",
-  });
+  };
+
+  const [form, setForm] = useState(emptyForm);
 
   const selectedGrade = useMemo(() => {
     return allGrades.find((g) => String(g?._id) === String(form.gradeId));
   }, [allGrades, form.gradeId]);
 
-  const selectedGradeNo = Number(selectedGrade?.grade || 0);
-  const isAL = isALGrade(selectedGradeNo);
+  const isAL = isALGrade(selectedGrade);
 
   const subjects = useMemo(() => {
     return Array.isArray(selectedGrade?.subjects) ? selectedGrade.subjects : [];
@@ -255,10 +268,12 @@ const ClassPage = () => {
           streamSubjectId: "",
         }));
       }
+
       return;
     }
 
     const validStreamIds = new Set(streams.map((s) => String(s?._id)));
+
     if (form.streamId && !validStreamIds.has(String(form.streamId))) {
       setForm((p) => ({
         ...p,
@@ -289,16 +304,7 @@ const ClassPage = () => {
 
   useEffect(() => {
     if (action === "create") {
-      setForm({
-        className: "",
-        gradeId: "",
-        subjectId: "",
-        streamId: "",
-        streamSubjectId: "",
-        teacherIds: [],
-        imageUrl: "",
-        imagePublicId: "",
-      });
+      setForm(emptyForm);
     }
   }, [action]);
 
@@ -545,19 +551,16 @@ const ClassPage = () => {
                 <div>
                   <div className="text-sm font-medium text-gray-700">Grade</div>
                   <div className="mt-1 text-sm text-gray-900">
-                    {classRes?.class?.gradeNo
-                      ? `Grade ${classRes.class.gradeNo}`
-                      : classRes?.class?.gradeId?.grade
-                      ? `Grade ${classRes.class.gradeId.grade}`
-                      : "—"}
+                    {classRes?.class?.gradeLabel ||
+                      (classRes?.class?.gradeId?.flowType === "al"
+                        ? "A/L"
+                        : classRes?.class?.gradeId?.grade
+                        ? `Grade ${classRes.class.gradeId.grade}`
+                        : "—")}
                   </div>
                 </div>
 
-                {isALGrade(
-                  Number(
-                    classRes?.class?.gradeNo || classRes?.class?.gradeId?.grade || 0
-                  )
-                ) && (
+                {classRes?.class?.gradeId?.flowType === "al" && (
                   <div>
                     <div className="text-sm font-medium text-gray-700">Stream</div>
                     <div className="mt-1 text-sm text-gray-900">
@@ -672,7 +675,11 @@ const ClassPage = () => {
                     <option value="">Select Grade</option>
                     {allGrades.map((g) => (
                       <option key={g._id} value={g._id}>
-                        Grade {g.grade}
+                        {g?.flowType === "al"
+                          ? g?.title || "A/L"
+                          : g?.grade
+                          ? `Grade ${g.grade}`
+                          : g?.title || "—"}
                       </option>
                     ))}
                   </select>
@@ -861,7 +868,11 @@ const ClassPage = () => {
                     <option value="">Select Grade</option>
                     {allGrades.map((g) => (
                       <option key={g._id} value={g._id}>
-                        Grade {g.grade}
+                        {g?.flowType === "al"
+                          ? g?.title || "A/L"
+                          : g?.grade
+                          ? `Grade ${g.grade}`
+                          : g?.title || "—"}
                       </option>
                     ))}
                   </select>

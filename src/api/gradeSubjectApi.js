@@ -33,7 +33,7 @@ export const gradeSubjectApi = createApi({
       query: (payload) => ({
         url: "/grade",
         method: "POST",
-        body: payload, // { grade }
+        body: payload,
       }),
       invalidatesTags: [{ type: "Grades", id: "LIST" }],
     }),
@@ -51,16 +51,20 @@ export const gradeSubjectApi = createApi({
     // -----------------------------
     getSubjectsByGrade: builder.query({
       query: (gradeId) => `/subjects/${gradeId}`,
-      providesTags: (result, err, gradeId) => [{ type: "Subjects", id: `LIST-${gradeId}` }],
+      providesTags: (result, err, gradeId) => [
+        { type: "Subjects", id: `LIST-${gradeId}` },
+      ],
     }),
 
     createSubject: builder.mutation({
       query: (payload) => ({
         url: "/subject",
         method: "POST",
-        body: payload, // { gradeId, subject }
+        body: payload,
       }),
-      invalidatesTags: (res, err, arg) => [{ type: "Subjects", id: `LIST-${arg.gradeId}` }],
+      invalidatesTags: (res, err, arg) => [
+        { type: "Subjects", id: `LIST-${arg.gradeId}` },
+      ],
     }),
 
     updateSubject: builder.mutation({
@@ -69,7 +73,9 @@ export const gradeSubjectApi = createApi({
         method: "PATCH",
         body: { subject },
       }),
-      invalidatesTags: (res, err, arg) => [{ type: "Subjects", id: `LIST-${arg.gradeId}` }],
+      invalidatesTags: (res, err, arg) => [
+        { type: "Subjects", id: `LIST-${arg.gradeId}` },
+      ],
     }),
 
     deleteSubject: builder.mutation({
@@ -77,48 +83,27 @@ export const gradeSubjectApi = createApi({
         url: `/subject/${gradeId}/${subjectId}`,
         method: "DELETE",
       }),
-      invalidatesTags: (res, err, arg) => [{ type: "Subjects", id: `LIST-${arg.gradeId}` }],
+      invalidatesTags: (res, err, arg) => [
+        { type: "Subjects", id: `LIST-${arg.gradeId}` },
+      ],
     }),
 
     // -----------------------------
-    // STREAMS (Grades 12-13)
+    // A/L STREAMS (READ ONLY)
     // -----------------------------
     getStreamsByGrade: builder.query({
-      query: (gradeId) => `/streams/${gradeId}`,
-      providesTags: (result, err, gradeId) => [{ type: "Streams", id: `LIST-${gradeId}` }],
-    }),
-
-    createStream: builder.mutation({
-      query: (payload) => ({
-        url: "/stream",
-        method: "POST",
-        body: payload, // { gradeId, stream }
-      }),
-      invalidatesTags: (res, err, arg) => [{ type: "Streams", id: `LIST-${arg.gradeId}` }],
-    }),
-
-    updateStream: builder.mutation({
-      query: ({ gradeId, streamId, stream }) => ({
-        url: `/stream/${gradeId}/${streamId}`,
-        method: "PATCH",
-        body: { stream },
-      }),
-      invalidatesTags: (res, err, arg) => [{ type: "Streams", id: `LIST-${arg.gradeId}` }],
-    }),
-
-    deleteStream: builder.mutation({
-      query: ({ gradeId, streamId }) => ({
-        url: `/stream/${gradeId}/${streamId}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: (res, err, arg) => [{ type: "Streams", id: `LIST-${arg.gradeId}` }],
+      query: (gradeId) => `/streams/admin/${gradeId}`,
+      providesTags: (result, err, gradeId) => [
+        { type: "Streams", id: `LIST-${gradeId}` },
+      ],
     }),
 
     // -----------------------------
-    // STREAM SUBJECTS (Grades 12-13)
+    // A/L STREAM SUBJECTS
     // -----------------------------
     getStreamSubjects: builder.query({
-      query: ({ gradeId, streamId }) => `/stream/subjects/${gradeId}/${streamId}`,
+      query: ({ gradeId, streamId }) =>
+        `/stream/subjects/${gradeId}/${streamId}`,
       providesTags: (result, err, arg) => [
         { type: "StreamSubjects", id: `LIST-${arg.gradeId}-${arg.streamId}` },
       ],
@@ -128,10 +113,11 @@ export const gradeSubjectApi = createApi({
       query: (payload) => ({
         url: "/stream/subject",
         method: "POST",
-        body: payload, // { gradeId, streamId, subject }
+        body: payload,
       }),
       invalidatesTags: (res, err, arg) => [
         { type: "StreamSubjects", id: `LIST-${arg.gradeId}-${arg.streamId}` },
+        { type: "Streams", id: `LIST-${arg.gradeId}` },
       ],
     }),
 
@@ -143,6 +129,7 @@ export const gradeSubjectApi = createApi({
       }),
       invalidatesTags: (res, err, arg) => [
         { type: "StreamSubjects", id: `LIST-${arg.gradeId}-${arg.streamId}` },
+        { type: "Streams", id: `LIST-${arg.gradeId}` },
       ],
     }),
 
@@ -153,6 +140,7 @@ export const gradeSubjectApi = createApi({
       }),
       invalidatesTags: (res, err, arg) => [
         { type: "StreamSubjects", id: `LIST-${arg.gradeId}-${arg.streamId}` },
+        { type: "Streams", id: `LIST-${arg.gradeId}` },
       ],
     }),
   }),
@@ -169,9 +157,6 @@ export const {
   useDeleteSubjectMutation,
 
   useGetStreamsByGradeQuery,
-  useCreateStreamMutation,
-  useUpdateStreamMutation,
-  useDeleteStreamMutation,
 
   useGetStreamSubjectsQuery,
   useCreateStreamSubjectMutation,

@@ -1,4 +1,3 @@
-// src/pages/SignIn.page.jsx
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
@@ -16,13 +15,7 @@ const SignInPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ Support both:
-  // - state={{ from: location }}  => from.pathname
-  // - state={{ from: "/somepath" }} => from string (older code)
-  const from =
-    location.state?.from?.pathname ||
-    location.state?.from ||
-    "/home";
+  const from = location.state?.from?.pathname || location.state?.from || "/home";
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -30,10 +23,7 @@ const SignInPage = () => {
 
     try {
       const res = await signIn({ whatsappnumber, password }).unwrap();
-
-      // ✅ save to redux + localStorage (your authSlice does localStorage)
       dispatch(setCredentials({ token: res?.token, user: res?.user }));
-
       navigate(from, { replace: true });
     } catch (err) {
       setError(err?.data?.message || "Sign in failed");
@@ -42,7 +32,6 @@ const SignInPage = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full">
-      {/* LEFT IMAGE */}
       <div className="hidden md:flex w-full md:w-1/2">
         <img
           src={signimage}
@@ -51,7 +40,6 @@ const SignInPage = () => {
         />
       </div>
 
-      {/* RIGHT FORM */}
       <div className="flex flex-col justify-center items-center bg-white w-full md:w-1/2 p-10">
         <h2 className="text-3xl font-bold text-blue-800 mb-2">Admin Panel</h2>
         <p className="text-sm text-gray-500 mb-8">Sign in to your account</p>

@@ -10,7 +10,6 @@ const SignUpPage = () => {
   const [form, setForm] = useState({
     name: "",
     whatsappnumber: "",
-    email: "",
     password: "",
     confirmPassword: "",
     role: "admin",
@@ -20,25 +19,25 @@ const SignUpPage = () => {
 
   const onChange = (e) => {
     setError("");
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    // ✅ frontend validation only
     if (String(form.password) !== String(form.confirmPassword)) {
       setError("Passwords do not match");
       return;
     }
 
     try {
-      // ✅ backend doesn't need confirmPassword
       const payload = {
         name: form.name,
         whatsappnumber: form.whatsappnumber,
-        email: form.email,
         password: form.password,
         role: "admin",
       };
@@ -46,7 +45,6 @@ const SignUpPage = () => {
       const res = await signUp(payload).unwrap();
       const phone = res?.user?.phonenumber || form.whatsappnumber;
 
-      // ✅ Flow 1: signup -> otp verify -> signin
       navigate(`/otp?flow=signup&phone=${encodeURIComponent(phone)}`);
     } catch (err) {
       setError(err?.data?.message || "Signup failed");
@@ -97,19 +95,6 @@ const SignUpPage = () => {
               onChange={onChange}
               type="tel"
               placeholder="Enter your WhatsApp number"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm mb-2">Email</label>
-            <input
-              name="email"
-              value={form.email}
-              onChange={onChange}
-              type="email"
-              placeholder="Enter your email"
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />

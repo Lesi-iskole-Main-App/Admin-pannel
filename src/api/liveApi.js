@@ -8,8 +8,12 @@ export const liveApi = createApi({
     baseUrl: `${BACKEND_URL}/api/live`,
     credentials: "include",
     prepareHeaders: (headers, { getState }) => {
-      const token = getState()?.auth?.token;
+      const reduxToken = getState()?.auth?.token;
+      const storageToken = localStorage.getItem("token");
+      const token = reduxToken || storageToken;
+
       if (token) headers.set("Authorization", `Bearer ${token}`);
+      headers.set("Content-Type", "application/json");
       return headers;
     },
   }),
