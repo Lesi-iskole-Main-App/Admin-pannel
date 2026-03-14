@@ -1,4 +1,3 @@
-// src/api/lessonApi.js
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
@@ -9,14 +8,17 @@ export const lessonApi = createApi({
     baseUrl: `${BACKEND_URL}/api/lesson`,
     credentials: "include",
     prepareHeaders: (headers, { getState }) => {
-      const token = getState()?.auth?.token;
+      const reduxToken = getState()?.auth?.token;
+      const storageToken = localStorage.getItem("token");
+      const token = reduxToken || storageToken;
+
       if (token) headers.set("Authorization", `Bearer ${token}`);
+      headers.set("Content-Type", "application/json");
       return headers;
     },
   }),
   tagTypes: ["Lesson"],
   endpoints: (builder) => ({
-    // ✅ admin only
     getAllLessons: builder.query({
       query: () => ({
         url: "/",
@@ -31,7 +33,6 @@ export const lessonApi = createApi({
           : [{ type: "Lesson", id: "LIST" }],
     }),
 
-    // ✅ admin only
     createLesson: builder.mutation({
       query: (payload) => ({
         url: "/",
@@ -41,7 +42,6 @@ export const lessonApi = createApi({
       invalidatesTags: [{ type: "Lesson", id: "LIST" }],
     }),
 
-    // ✅ admin only
     updateLessonById: builder.mutation({
       query: ({ lessonId, body }) => ({
         url: `/${lessonId}`,
@@ -54,7 +54,6 @@ export const lessonApi = createApi({
       ],
     }),
 
-    // ✅ admin only
     deleteLessonById: builder.mutation({
       query: (lessonId) => ({
         url: `/${lessonId}`,

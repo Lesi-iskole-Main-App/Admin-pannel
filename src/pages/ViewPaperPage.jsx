@@ -1,4 +1,3 @@
-// src/pages/ViewPaper.page.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -38,6 +37,23 @@ const payBadgeClass = (payment) => {
   if (p === "paid") return "bg-red-50 text-red-700 border-red-200";
   if (p === "practise") return "bg-purple-50 text-purple-700 border-purple-200";
   return "bg-green-50 text-green-700 border-green-200";
+};
+
+const getGradeLabel = (paper) => {
+  const gradeValue = Number(paper?.meta?.grade || 0);
+  const hasStream = Boolean(paper?.meta?.stream);
+
+  if (hasStream || gradeValue === 12 || gradeValue === 13) return "A/L";
+  if (gradeValue >= 1 && gradeValue <= 11) return `Grade ${gradeValue}`;
+  return "-";
+};
+
+const getSubjectLabel = (paper) => {
+  const meta = paper?.meta || {};
+  if (meta?.stream) {
+    return `${meta.stream} - ${meta.subject || "-"}`;
+  }
+  return meta?.subject || "-";
 };
 
 const ModalShell = ({ open, title, children, onClose, maxWidth = "max-w-xl" }) => {
@@ -93,27 +109,21 @@ const ViewPaperPage = () => {
   );
 
   const rows = useMemo(() => {
-    return papers.map((p) => {
-      const meta = p?.meta || {};
-      return {
-        _id: p._id,
-        raw: p,
-        name: p.paperTitle,
-        grade: meta?.grade ? `Grade ${meta.grade}` : "-",
-        subject: meta?.stream
-          ? `${meta.stream} - ${meta.subject || "-"}`
-          : meta?.subject || "-",
-        time: p.timeMinutes ? `${p.timeMinutes} Minutes` : "-",
-        questionCount: p.questionCount ?? "-",
-        createdBy: p.createdPersonName || "-",
-        createdAt: fmtDate(p.createdAt),
-        payment: p.payment,
-        amount: p.amount,
-      };
-    });
+    return papers.map((p) => ({
+      _id: p._id,
+      raw: p,
+      name: p.paperTitle,
+      grade: getGradeLabel(p),
+      subject: getSubjectLabel(p),
+      time: p.timeMinutes ? `${p.timeMinutes} Minutes` : "-",
+      questionCount: p.questionCount ?? "-",
+      createdBy: p.createdPersonName || "-",
+      createdAt: fmtDate(p.createdAt),
+      payment: p.payment,
+      amount: p.amount,
+    }));
   }, [papers]);
 
-  // pagination
   const [currentPage, setCurrentPage] = useState(1);
 
   const totalRows = rows.length;
@@ -138,12 +148,10 @@ const ViewPaperPage = () => {
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
   const goToLastPage = () => setCurrentPage(totalPages);
 
-  // modal state
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selected, setSelected] = useState(null);
 
-  // edit form state
   const enums = formData?.enums || {};
   const paperTypes = enums.paperTypes || [
     "Daily Quiz",
@@ -314,7 +322,6 @@ const ViewPaperPage = () => {
           </div>
         </div>
 
-        {/* TABLE */}
         <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[1350px] table-fixed border-separate border-spacing-0">
@@ -481,7 +488,6 @@ const ViewPaperPage = () => {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}
@@ -531,7 +537,6 @@ const ViewPaperPage = () => {
           </div>
         </div>
 
-        {/* VIEW MODAL */}
         <ModalShell
           open={viewOpen}
           title="Paper Details"
@@ -562,16 +567,14 @@ const ViewPaperPage = () => {
                 <div>
                   <div className="text-sm font-medium text-gray-700">Grade</div>
                   <div className="mt-1 text-sm text-gray-900">
-                    {selected?.meta?.grade ? `Grade ${selected.meta.grade}` : "-"}
+                    {getGradeLabel(selected)}
                   </div>
                 </div>
 
                 <div>
                   <div className="text-sm font-medium text-gray-700">Subject</div>
                   <div className="mt-1 text-sm text-gray-900">
-                    {selected?.meta?.stream
-                      ? `${selected.meta.stream} - ${selected.meta.subject || "-"}`
-                      : selected?.meta?.subject || "-"}
+                    {getSubjectLabel(selected)}
                   </div>
                 </div>
 
@@ -652,7 +655,6 @@ const ViewPaperPage = () => {
           )}
         </ModalShell>
 
-        {/* EDIT MODAL */}
         <ModalShell
           open={editOpen}
           title="Edit Paper"

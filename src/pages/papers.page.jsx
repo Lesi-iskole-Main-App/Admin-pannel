@@ -1,9 +1,11 @@
-// src/pages/Papers.page.jsx
 import React, { useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
-import { useCreatePaperMutation, useGetPaperFormDataQuery } from "../api/paperApi";
+import {
+  useCreatePaperMutation,
+  useGetPaperFormDataQuery,
+} from "../api/paperApi";
 import { setLastCreatedPaper } from "../api/features/paperSlice";
 
 const PapersPage = () => {
@@ -20,7 +22,12 @@ const PapersPage = () => {
 
   const enums = data?.enums || {};
   const paperTypes =
-    enums?.paperTypes || ["Daily Quiz", "Topic wise paper", "Model paper", "Past paper"];
+    enums?.paperTypes || [
+      "Daily Quiz",
+      "Topic wise paper",
+      "Model paper",
+      "Past paper",
+    ];
   const paymentTypes = enums?.paymentTypes || ["free", "paid", "practise"];
   const attemptsAllowed = enums?.attemptsAllowed || [1, 2, 3];
   const answerCounts = useMemo(() => [1, 2, 3, 4, 5, 6], []);
@@ -48,15 +55,15 @@ const PapersPage = () => {
     [grades, form.gradeId]
   );
 
-  const gradeNo = Number(selectedGrade?.grade || 0);
-  const isAL = gradeNo === 12 || gradeNo === 13;
+  const isAL = selectedGrade?.flowType === "al";
+
+  const subjectList = useMemo(
+    () => (Array.isArray(selectedGrade?.subjects) ? selectedGrade.subjects : []),
+    [selectedGrade]
+  );
 
   const streamList = useMemo(
     () => (Array.isArray(selectedGrade?.streams) ? selectedGrade.streams : []),
-    [selectedGrade]
-  );
-  const subjectList = useMemo(
-    () => (Array.isArray(selectedGrade?.subjects) ? selectedGrade.subjects : []),
     [selectedGrade]
   );
 
@@ -64,18 +71,67 @@ const PapersPage = () => {
     () => streamList.find((s) => String(s._id) === String(form.streamId)) || null,
     [streamList, form.streamId]
   );
+
   const streamSubjects = useMemo(
     () => (Array.isArray(selectedStream?.subjects) ? selectedStream.subjects : []),
     [selectedStream]
   );
+
+  const getGradeLabel = (grade) => {
+    if (!grade) return "";
+
+    if (String(grade.title || "").trim()) return grade.title;
+
+    if (grade.flowType === "al") return `Grade ${grade.grade} A/L`;
+
+    return `Grade ${grade.grade}`;
+  };
+
+  const getStreamLabel = (stream) => {
+    if (!stream) return "";
+    return stream.label || stream.stream || "";
+  };
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
+  const onGradeChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      gradeId: value,
+      subjectId: "",
+      streamId: "",
+      streamSubjectId: "",
+    }));
+
+    setErrors((prev) => ({
+      ...prev,
+      gradeId: "",
+      subjectId: "",
+      streamId: "",
+      streamSubjectId: "",
+    }));
+  };
+
+  const onStreamChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      streamId: value,
+      streamSubjectId: "",
+    }));
+
+    setErrors((prev) => ({
+      ...prev,
+      streamId: "",
+      streamSubjectId: "",
+    }));
+  };
+
   const validate = () => {
     const e = {};
+
     if (!form.gradeId) e.gradeId = "Grade is required";
 
     if (isAL) {
@@ -86,26 +142,38 @@ const PapersPage = () => {
     }
 
     if (!form.paperType) e.paperType = "Paper Type is required";
-    if (!form.paperTitle.trim()) e.paperTitle = "Paper Title is required";
+    if (!String(form.paperTitle || "").trim()) {
+      e.paperTitle = "Paper Title is required";
+    }
 
     const time = Number(form.timeMinutes);
-    if (!time || time < 1 || time > 180) e.timeMinutes = "Time must be 1..180 minutes";
+    if (!time || time < 1 || time > 180) {
+      e.timeMinutes = "Time must be 1..180 minutes";
+    }
 
     const qc = Number(form.questionCount);
-    if (!qc || qc < 1 || qc > 50) e.questionCount = "Question Count must be 1..50";
+    if (!qc || qc < 1 || qc > 50) {
+      e.questionCount = "Question Count must be 1..50";
+    }
 
     const ac = Number(form.oneQuestionAnswersCount);
-    if (!ac || ac < 1 || ac > 6) e.oneQuestionAnswersCount = "Answer count must be 1..6";
+    if (!ac || ac < 1 || ac > 6) {
+      e.oneQuestionAnswersCount = "Answer count must be 1..6";
+    }
 
-    if (!form.createdPersonName.trim()) {
+    if (!String(form.createdPersonName || "").trim()) {
       e.createdPersonName = "Created Person Name is required";
     }
 
-    if (!paymentTypes.includes(form.payment)) e.payment = "Invalid payment";
+    if (!paymentTypes.includes(form.payment)) {
+      e.payment = "Invalid payment";
+    }
 
     if (form.payment === "paid") {
       const amt = Number(form.amount);
-      if (!amt || amt <= 0) e.amount = "Amount must be > 0 for paid papers";
+      if (!amt || amt <= 0) {
+        e.amount = "Amount must be > 0 for paid papers";
+      }
     }
 
     if (!attemptsAllowed.includes(Number(form.attempts))) {
@@ -126,11 +194,11 @@ const PapersPage = () => {
       streamId: isAL ? form.streamId : null,
       streamSubjectId: isAL ? form.streamSubjectId : null,
       paperType: form.paperType,
-      paperTitle: form.paperTitle.trim(),
+      paperTitle: String(form.paperTitle || "").trim(),
       timeMinutes: Number(form.timeMinutes),
       questionCount: Number(form.questionCount),
       oneQuestionAnswersCount: Number(form.oneQuestionAnswersCount || 4),
-      createdPersonName: form.createdPersonName.trim(),
+      createdPersonName: String(form.createdPersonName || "").trim(),
       payment: form.payment,
       amount: form.payment === "paid" ? Number(form.amount) : 0,
       attempts: Number(form.attempts),
@@ -139,6 +207,7 @@ const PapersPage = () => {
     try {
       const res = await createPaper(payload).unwrap();
       const createdPaper = res?.paper || null;
+
       dispatch(setLastCreatedPaper(createdPaper));
 
       const paperId = createdPaper?._id;
@@ -162,7 +231,7 @@ const PapersPage = () => {
               Paper Creation
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Create a new paper with grade, subject, timing, payment
+              Create a new paper with available grade, subject, timing, payment
             </p>
           </div>
 
@@ -199,25 +268,21 @@ const PapersPage = () => {
               </label>
               <select
                 value={form.gradeId}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setField("gradeId", v);
-                  setField("subjectId", "");
-                  setField("streamId", "");
-                  setField("streamSubjectId", "");
-                }}
+                onChange={(e) => onGradeChange(e.target.value)}
                 className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
                 disabled={isLoading}
               >
                 <option value="">{isLoading ? "Loading..." : "Select Grade"}</option>
                 {grades.map((g) => (
                   <option key={g._id} value={g._id}>
-                    Grade {g.grade}
+                    {getGradeLabel(g)}
                   </option>
                 ))}
               </select>
               {errors.gradeId && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.gradeId}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.gradeId}
+                </p>
               )}
             </div>
 
@@ -238,7 +303,9 @@ const PapersPage = () => {
                 ))}
               </select>
               {errors.paperType && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.paperType}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.paperType}
+                </p>
               )}
             </div>
 
@@ -263,7 +330,9 @@ const PapersPage = () => {
                   ))}
                 </select>
                 {errors.subjectId && (
-                  <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.subjectId}</p>
+                  <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                    {errors.subjectId}
+                  </p>
                 )}
               </div>
             ) : (
@@ -274,10 +343,7 @@ const PapersPage = () => {
                   </label>
                   <select
                     value={form.streamId}
-                    onChange={(e) => {
-                      setField("streamId", e.target.value);
-                      setField("streamSubjectId", "");
-                    }}
+                    onChange={(e) => onStreamChange(e.target.value)}
                     className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
                     disabled={!form.gradeId}
                   >
@@ -286,12 +352,14 @@ const PapersPage = () => {
                     </option>
                     {streamList.map((s) => (
                       <option key={s._id} value={s._id}>
-                        {s.stream}
+                        {getStreamLabel(s)}
                       </option>
                     ))}
                   </select>
                   {errors.streamId && (
-                    <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.streamId}</p>
+                    <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                      {errors.streamId}
+                    </p>
                   )}
                 </div>
 
@@ -334,7 +402,9 @@ const PapersPage = () => {
                 className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
               />
               {errors.paperTitle && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.paperTitle}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.paperTitle}
+                </p>
               )}
             </div>
 
@@ -351,7 +421,9 @@ const PapersPage = () => {
                 max={180}
               />
               {errors.timeMinutes && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.timeMinutes}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.timeMinutes}
+                </p>
               )}
             </div>
 
@@ -368,7 +440,9 @@ const PapersPage = () => {
                 max={50}
               />
               {errors.questionCount && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.questionCount}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.questionCount}
+                </p>
               )}
             </div>
 
@@ -418,8 +492,9 @@ const PapersPage = () => {
               <select
                 value={form.payment}
                 onChange={(e) => {
-                  setField("payment", e.target.value);
-                  if (e.target.value !== "paid") setField("amount", "");
+                  const value = e.target.value;
+                  setField("payment", value);
+                  if (value !== "paid") setField("amount", "");
                 }}
                 className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
               >
@@ -430,7 +505,9 @@ const PapersPage = () => {
                 ))}
               </select>
               {errors.payment && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.payment}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.payment}
+                </p>
               )}
             </div>
 
@@ -447,7 +524,9 @@ const PapersPage = () => {
                   min={1}
                 />
                 {errors.amount && (
-                  <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.amount}</p>
+                  <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                    {errors.amount}
+                  </p>
                 )}
               </div>
             )}
@@ -468,7 +547,9 @@ const PapersPage = () => {
                 ))}
               </select>
               {errors.attempts && (
-                <p className="mt-1 text-xs text-red-600 text-center md:text-left">{errors.attempts}</p>
+                <p className="mt-1 text-xs text-red-600 text-center md:text-left">
+                  {errors.attempts}
+                </p>
               )}
             </div>
           </div>

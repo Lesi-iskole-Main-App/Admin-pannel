@@ -7,7 +7,10 @@ import {
   useBanStudentMutation,
   useUnbanStudentMutation,
 } from "../api/studentApi";
-import { setStudentFilters, resetStudentFilters } from "../api/features/studentSlice";
+import {
+  setStudentFilters,
+  resetStudentFilters,
+} from "../api/features/studentSlice";
 
 const levelsToGrades = {
   primary: Array.from({ length: 5 }, (_, i) => String(i + 1)),
@@ -34,7 +37,9 @@ const Modal = ({ open, title, onClose, children, footer }) => {
         <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
 
         {footer ? (
-          <div className="border-t border-gray-200 bg-gray-50 px-5 py-4">{footer}</div>
+          <div className="border-t border-gray-200 bg-gray-50 px-5 py-4">
+            {footer}
+          </div>
         ) : null}
       </div>
     </div>
@@ -127,7 +132,6 @@ const StudentsPage = () => {
   const rows = data?.rows || [];
   const total = data?.total || 0;
 
-  const [classModalOpen, setClassModalOpen] = useState(false);
   const [banModalOpen, setBanModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
 
@@ -135,7 +139,11 @@ const StudentsPage = () => {
   const [unbanStudent, { isLoading: unbanning }] = useUnbanStudentMutation();
 
   useEffect(() => {
-    if (filters.level && filters.grade && !gradeOptions.includes(String(filters.grade))) {
+    if (
+      filters.level &&
+      filters.grade &&
+      !gradeOptions.includes(String(filters.grade))
+    ) {
       dispatch(setStudentFilters({ grade: "" }));
     }
   }, [filters.level, filters.grade, gradeOptions, dispatch]);
@@ -147,11 +155,6 @@ const StudentsPage = () => {
 
   const onReset = () => {
     dispatch(resetStudentFilters());
-  };
-
-  const openClassModal = (row) => {
-    setSelected(row);
-    setClassModalOpen(true);
   };
 
   const openBanModal = (row) => {
@@ -236,10 +239,12 @@ const StudentsPage = () => {
             />
 
             <Input
-              label="Email"
-              value={filters.email}
-              onChange={(v) => dispatch(setStudentFilters({ email: v }))}
-              placeholder="student@email.com"
+              label="Phone Number"
+              value={filters.phonenumber}
+              onChange={(v) =>
+                dispatch(setStudentFilters({ phonenumber: v }))
+              }
+              placeholder="0771234567"
             />
 
             <Select
@@ -253,7 +258,9 @@ const StudentsPage = () => {
             <Select
               label="Level"
               value={filters.level}
-              onChange={(v) => dispatch(setStudentFilters({ level: v, grade: "" }))}
+              onChange={(v) =>
+                dispatch(setStudentFilters({ level: v, grade: "" }))
+              }
               options={levelOptions.map((x) => ({
                 value: x,
                 label: x.toUpperCase(),
@@ -300,7 +307,11 @@ const StudentsPage = () => {
 
           <div className="mt-3 text-xs text-gray-500">
             {isLoading || isFetching ? "Loading..." : `Total students: ${total}`}
-            {error ? <span className="ml-2 font-semibold text-red-600">| {errorText}</span> : null}
+            {error ? (
+              <span className="ml-2 font-semibold text-red-600">
+                | {errorText}
+              </span>
+            ) : null}
           </div>
         </form>
 
@@ -309,15 +320,15 @@ const StudentsPage = () => {
             <table className="w-full min-w-[1400px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr>
-                  <Th className="w-[14%]">Student Name</Th>
-                  <Th className="w-[17%]">Email</Th>
+                  <Th className="w-[15%]">Student Name</Th>
+                  <Th className="w-[14%]">Phone Number</Th>
                   <Th className="w-[10%]">District</Th>
                   <Th className="w-[10%]">Town</Th>
                   <Th className="w-[15%]">Address</Th>
                   <Th className="w-[8%]">Level</Th>
                   <Th className="w-[7%]">Grade</Th>
-                  <Th className="w-[10%]">Class Name</Th>
-                  <Th className="w-[9%]">Status</Th>
+                  <Th className="w-[13%]">Class Name</Th>
+                  <Th className="w-[8%]">Status</Th>
                   <Th className="w-[10%] border-r-0 text-center">Operation</Th>
                 </tr>
               </thead>
@@ -325,38 +336,55 @@ const StudentsPage = () => {
               <tbody className="bg-white">
                 {error ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-10 text-center text-sm font-medium text-red-600">
+                    <td
+                      colSpan={10}
+                      className="px-6 py-10 text-center text-sm font-medium text-red-600"
+                    >
                       {errorText}
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-500">
+                    <td
+                      colSpan={10}
+                      className="px-6 py-10 text-center text-sm text-gray-500"
+                    >
                       No students found
                     </td>
                   </tr>
                 ) : (
                   rows.map((s) => (
                     <tr key={s._id} className="hover:bg-gray-50">
-                      <Td className="truncate font-semibold text-gray-900">{s.name || "-"}</Td>
-                      <Td className="truncate">{s.email || "-"}</Td>
+                      <Td className="truncate font-semibold text-gray-900">
+                        {s.name || "-"}
+                      </Td>
+
+                      <Td className="truncate">{s.phonenumber || "-"}</Td>
+
                       <Td className="truncate">{s.district || "-"}</Td>
+
                       <Td className="truncate">{s.town || "-"}</Td>
+
                       <Td className="truncate">{s.address || "-"}</Td>
+
                       <Td className="truncate">{s.selectedLevel || "-"}</Td>
+
                       <Td className="truncate">
                         {s.selectedGradeNumber ? String(s.selectedGradeNumber) : "-"}
                       </Td>
 
                       <Td>
                         {Array.isArray(s.classNames) && s.classNames.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => openClassModal(s)}
-                            className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-                          >
-                            View Classes
-                          </button>
+                          <div className="flex flex-wrap gap-1.5">
+                            {s.classNames.map((name, idx) => (
+                              <span
+                                key={`${name}-${idx}`}
+                                className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700"
+                              >
+                                {name}
+                              </span>
+                            ))}
+                          </div>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
@@ -420,50 +448,6 @@ const StudentsPage = () => {
             </div>
           </div>
         </div>
-
-        <Modal
-          open={classModalOpen}
-          title="Enrolled Class Names"
-          onClose={() => setClassModalOpen(false)}
-          footer={
-            <div className="flex justify-end">
-              <button
-                onClick={() => setClassModalOpen(false)}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
-          }
-        >
-          {!selected ? (
-            <div className="text-sm text-gray-500">No data</div>
-          ) : (
-            <div>
-              <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <div className="text-sm font-semibold text-gray-900">{selected.name || "-"}</div>
-                <div className="mt-1 text-xs text-gray-500">
-                  Total Classes: {selected?.classNames?.length || 0}
-                </div>
-              </div>
-
-              {Array.isArray(selected.classNames) && selected.classNames.length > 0 ? (
-                <div className="space-y-2">
-                  {selected.classNames.map((name, idx) => (
-                    <div
-                      key={`${name}-${idx}`}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700"
-                    >
-                      {name}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">No enrolled classes</div>
-              )}
-            </div>
-          )}
-        </Modal>
 
         <Modal
           open={banModalOpen}

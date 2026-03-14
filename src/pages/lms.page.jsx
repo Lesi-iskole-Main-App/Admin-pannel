@@ -55,7 +55,6 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
 const LMSPage = () => {
   const navigate = useNavigate();
 
-  // ===== APIs =====
   const {
     data: lessonsRes,
     isLoading: lessonsLoading,
@@ -77,7 +76,6 @@ const LMSPage = () => {
   const classes = classesRes?.classes || [];
   const lessons = lessonsRes?.lessons || [];
 
-  // ===== UI state (modals) =====
   const [modal, setModal] = useState({
     open: false,
     mode: "create",
@@ -93,16 +91,13 @@ const LMSPage = () => {
   const closeModal = () =>
     setModal({ open: false, mode: "create", lessonId: null });
 
-  // ===== Pagination =====
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ===== Form =====
   const [form, setForm] = useState({
     classId: "",
     grade: "",
     stream: "",
     subject: "",
-    teacherName: "",
     youtubeUrl: "",
     title: "",
     description: "",
@@ -116,7 +111,7 @@ const LMSPage = () => {
 
   const autoInfo = useMemo(() => {
     if (!selectedClass) {
-      return { grade: "", stream: "", subject: "", teacherName: "" };
+      return { grade: "", stream: "", subject: "" };
     }
 
     const gradeNo =
@@ -125,22 +120,15 @@ const LMSPage = () => {
       selectedClass?.grade ||
       "";
 
-    const grade = gradeNo ? `Grade ${gradeNo}` : "";
+    const grade = gradeNo ? `Grade ${gradeNo}` : selectedClass?.gradeLabel || "";
 
     const stream = selectedClass?.streamName || selectedClass?.stream || "";
 
     const subject = selectedClass?.subjectName || selectedClass?.subject || "";
 
-    const teacherName =
-      (selectedClass?.teacherIds || [])
-        .map((t) => t?.name)
-        .filter(Boolean)
-        .join(", ") || "No Teacher";
-
-    return { grade, stream, subject, teacherName };
+    return { grade, stream, subject };
   }, [selectedClass]);
 
-  // Keep grade/stream/subject/teacher auto-filled when class changes
   useEffect(() => {
     if (!form.classId) {
       setForm((p) => ({
@@ -148,7 +136,6 @@ const LMSPage = () => {
         grade: "",
         stream: "",
         subject: "",
-        teacherName: "",
       }));
       return;
     }
@@ -158,17 +145,9 @@ const LMSPage = () => {
       grade: autoInfo.grade,
       stream: autoInfo.stream,
       subject: autoInfo.subject,
-      teacherName: autoInfo.teacherName,
     }));
-  }, [
-    form.classId,
-    autoInfo.grade,
-    autoInfo.stream,
-    autoInfo.subject,
-    autoInfo.teacherName,
-  ]);
+  }, [form.classId, autoInfo.grade, autoInfo.stream, autoInfo.subject]);
 
-  // Reset on open create
   useEffect(() => {
     if (!modal.open) return;
     if (modal.mode === "create") {
@@ -177,7 +156,6 @@ const LMSPage = () => {
         grade: "",
         stream: "",
         subject: "",
-        teacherName: "",
         youtubeUrl: "",
         title: "",
         description: "",
@@ -187,7 +165,6 @@ const LMSPage = () => {
     }
   }, [modal.open, modal.mode]);
 
-  // Prefill on edit
   useEffect(() => {
     if (!modal.open || modal.mode !== "edit") return;
 
@@ -200,19 +177,16 @@ const LMSPage = () => {
 
     const grade = lesson?.classDetails?.grade
       ? `Grade ${lesson.classDetails.grade}`
-      : "";
+      : lesson?.classDetails?.gradeLabel || "";
 
     const stream = lesson?.classDetails?.stream || "";
     const subject = lesson?.classDetails?.subject || "";
-    const teacherName =
-      (lesson?.classDetails?.teachers || []).join(", ") || "No Teacher";
 
     setForm({
       classId,
       grade,
       stream,
       subject,
-      teacherName,
       youtubeUrl: lesson?.youtubeUrl || "",
       title: lesson?.title || "",
       description: lesson?.description || "",
@@ -221,17 +195,14 @@ const LMSPage = () => {
     });
   }, [modal.open, modal.mode, modal.lessonId, lessons]);
 
-  // ===== Table rows =====
   const rows = useMemo(() => {
     return lessons.map((l) => {
       const className = l?.classDetails?.className || "—";
       const grade = l?.classDetails?.grade
         ? `Grade ${l.classDetails.grade}`
-        : "—";
+        : l?.classDetails?.gradeLabel || "—";
       const stream = l?.classDetails?.stream || "—";
       const subject = l?.classDetails?.subject || "—";
-      const teacher =
-        (l?.classDetails?.teachers || []).join(", ") || "No Teacher";
 
       return {
         _id: l._id,
@@ -239,7 +210,6 @@ const LMSPage = () => {
         grade,
         stream,
         subject,
-        teacher,
         youtubeUrl: l.youtubeUrl || "",
         lessonName: l.title || "—",
         description: l.description || "—",
@@ -275,7 +245,6 @@ const LMSPage = () => {
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
   const goToLastPage = () => setCurrentPage(totalPages);
 
-  // ===== Actions =====
   const validate = () => {
     if (!form.classId) {
       alert("Please select a class");
@@ -384,7 +353,6 @@ const LMSPage = () => {
           </div>
         </div>
 
-        {/* CREATE / EDIT MODAL */}
         {modal.open && (
           <ModalShell
             title={modal.mode === "create" ? "Create Lesson" : "Edit Lesson"}
@@ -396,7 +364,6 @@ const LMSPage = () => {
               <div className="text-sm text-red-600">Failed to load classes</div>
             ) : (
               <div className="space-y-4">
-                {/* Class dropdown */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Class Name <span className="text-red-600">*</span>
@@ -417,8 +384,7 @@ const LMSPage = () => {
                   </select>
                 </div>
 
-                {/* Auto fields */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Grade
@@ -451,20 +417,8 @@ const LMSPage = () => {
                       disabled
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Teacher Name
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={form.teacherName}
-                      disabled
-                    />
-                  </div>
                 </div>
 
-                {/* YouTube link */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     YouTube Link
@@ -479,7 +433,6 @@ const LMSPage = () => {
                   />
                 </div>
 
-                {/* Lesson name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Lesson Name <span className="text-red-600">*</span>
@@ -494,7 +447,6 @@ const LMSPage = () => {
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Description
@@ -509,7 +461,6 @@ const LMSPage = () => {
                   />
                 </div>
 
-                {/* Date + Time */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
@@ -540,7 +491,6 @@ const LMSPage = () => {
                   </div>
                 </div>
 
-                {/* Buttons */}
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="button"
@@ -575,34 +525,30 @@ const LMSPage = () => {
           </ModalShell>
         )}
 
-        {/* TABLE */}
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1450px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1300px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
                     Class Name
                   </th>
-                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Stream
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Teacher Name
-                  </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     YouTube Link
                   </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
                     Lesson Name
                   </th>
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
                     Description
                   </th>
                   <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
@@ -620,19 +566,19 @@ const LMSPage = () => {
               <tbody className="bg-white text-sm text-gray-700">
                 {lessonsLoading ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : lessonsError ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-red-600">
+                    <td colSpan={10} className="px-6 py-8 text-center text-red-600">
                       Failed to load lessons
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                       No lesson records found
                     </td>
                   </tr>
@@ -655,10 +601,6 @@ const LMSPage = () => {
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.subject}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.teacher}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
@@ -742,7 +684,6 @@ const LMSPage = () => {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}

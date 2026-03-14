@@ -3,7 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 const initialState = {
   filters: {
     status: "",
-    email: "",
+    phonenumber: "",
     district: "",
     level: "",
     grade: "",
@@ -26,7 +26,7 @@ const studentSlice = createSlice({
     resetStudentFilters: (state) => {
       state.filters = {
         status: "",
-        email: "",
+        phonenumber: "",
         district: "",
         level: "",
         grade: "",
