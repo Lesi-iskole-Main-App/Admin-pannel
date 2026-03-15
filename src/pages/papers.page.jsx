@@ -21,13 +21,12 @@ const PapersPage = () => {
   );
 
   const enums = data?.enums || {};
-  const paperTypes =
-    enums?.paperTypes || [
-      "Daily Quiz",
-      "Topic wise paper",
-      "Model paper",
-      "Past paper",
-    ];
+  const paperTypes = enums?.paperTypes || [
+    "Daily Quiz",
+    "Topic wise paper",
+    "Model paper",
+    "Past paper",
+  ];
   const paymentTypes = enums?.paymentTypes || ["free", "paid", "practise"];
   const attemptsAllowed = enums?.attemptsAllowed || [1, 2, 3];
   const answerCounts = useMemo(() => [1, 2, 3, 4, 5, 6], []);
@@ -80,16 +79,31 @@ const PapersPage = () => {
   const getGradeLabel = (grade) => {
     if (!grade) return "";
 
-    if (String(grade.title || "").trim()) return grade.title;
+    const title = String(grade.title || "").trim();
+    if (title) return title;
 
     if (grade.flowType === "al") return `Grade ${grade.grade} A/L`;
-
     return `Grade ${grade.grade}`;
   };
 
   const getStreamLabel = (stream) => {
     if (!stream) return "";
-    return stream.label || stream.stream || "";
+
+    const raw = String(stream.label || stream.stream || "").trim();
+    if (!raw) return "";
+
+    const normalized = raw.toLowerCase().replace(/[_\s-]+/g, " ").trim();
+
+    const map = new Map([
+      ["physical science", "Physical Science"],
+      ["biological science", "Biological Science"],
+      ["commerce", "Commerce"],
+      ["arts", "Arts"],
+      ["technology", "Technology"],
+      ["common", "Common"],
+    ]);
+
+    return map.get(normalized) || normalized.replace(/\b\w/g, (m) => m.toUpperCase());
   };
 
   const setField = (key, value) => {
@@ -142,6 +156,7 @@ const PapersPage = () => {
     }
 
     if (!form.paperType) e.paperType = "Paper Type is required";
+
     if (!String(form.paperTitle || "").trim()) {
       e.paperTitle = "Paper Title is required";
     }
@@ -188,11 +203,30 @@ const PapersPage = () => {
     ev.preventDefault();
     if (!validate()) return;
 
+    const selectedNormalSubject =
+      !isAL
+        ? subjectList.find((s) => String(s._id) === String(form.subjectId)) || null
+        : null;
+
+    const selectedALSubject =
+      isAL
+        ? streamSubjects.find(
+            (s) => String(s._id) === String(form.streamSubjectId)
+          ) || null
+        : null;
+
     const payload = {
-      gradeId: form.gradeId,
-      subjectId: isAL ? null : form.subjectId,
-      streamId: isAL ? form.streamId : null,
-      streamSubjectId: isAL ? form.streamSubjectId : null,
+      gradeId: form.gradeId || null,
+
+      subjectId: isAL ? null : form.subjectId || null,
+      streamId: isAL ? form.streamId || null : null,
+      streamSubjectId: isAL ? form.streamSubjectId || null : null,
+
+      stream: isAL ? (selectedStream?.stream || null) : null,
+      subject: isAL
+        ? selectedALSubject?.subject || null
+        : selectedNormalSubject?.subject || null,
+
       paperType: form.paperType,
       paperTitle: String(form.paperTitle || "").trim(),
       timeMinutes: Number(form.timeMinutes),
@@ -205,8 +239,12 @@ const PapersPage = () => {
     };
 
     try {
+      console.log("CREATE PAPER PAYLOAD =>", payload);
+
       const res = await createPaper(payload).unwrap();
       const createdPaper = res?.paper || null;
+
+      console.log("CREATE PAPER RESPONSE =>", res);
 
       dispatch(setLastCreatedPaper(createdPaper));
 
@@ -218,7 +256,14 @@ const PapersPage = () => {
 
       alert("✅ Paper created!");
     } catch (err) {
-      alert(err?.data?.message || "❌ Failed to create paper");
+      console.error("CREATE PAPER ERROR =>", err);
+      console.error("BACKEND MESSAGE =>", err?.data);
+
+      alert(
+        err?.data?.message ||
+          err?.error ||
+          "❌ Failed to create paper"
+      );
     }
   };
 
@@ -270,7 +315,7 @@ const PapersPage = () => {
                 value={form.gradeId}
                 onChange={(e) => onGradeChange(e.target.value)}
                 className="mt-2 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                disabled={isLoading}
+                disabled={isLoading || isCreating}
               >
                 <option value="">{isLoading ? "Loading..." : "Select Grade"}</option>
                 {grades.map((g) => (

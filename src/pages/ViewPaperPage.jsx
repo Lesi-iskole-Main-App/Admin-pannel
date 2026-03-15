@@ -39,6 +39,24 @@ const payBadgeClass = (payment) => {
   return "bg-green-50 text-green-700 border-green-200";
 };
 
+const prettifyStream = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const normalized = raw.toLowerCase().replace(/[_\s-]+/g, " ").trim();
+
+  const map = new Map([
+    ["physical science", "Physical Science"],
+    ["biological science", "Biological Science"],
+    ["commerce", "Commerce"],
+    ["arts", "Arts"],
+    ["technology", "Technology"],
+    ["common", "Common"],
+  ]);
+
+  return map.get(normalized) || normalized.replace(/\b\w/g, (m) => m.toUpperCase());
+};
+
 const getGradeLabel = (paper) => {
   const gradeValue = Number(paper?.meta?.grade || 0);
   const hasStream = Boolean(paper?.meta?.stream);
@@ -50,9 +68,12 @@ const getGradeLabel = (paper) => {
 
 const getSubjectLabel = (paper) => {
   const meta = paper?.meta || {};
-  if (meta?.stream) {
-    return `${meta.stream} - ${meta.subject || "-"}`;
+  const stream = prettifyStream(meta?.stream);
+
+  if (stream) {
+    return `${stream} - ${meta?.subject || "-"}`;
   }
+
   return meta?.subject || "-";
 };
 
@@ -97,7 +118,7 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
 
 const ViewPaperPage = () => {
   const navigate = useNavigate();
-  const { data, isLoading, isFetching } = useGetPapersQuery();
+  const { data, isLoading, isFetching, refetch } = useGetPapersQuery();
   const { data: formData } = useGetPaperFormDataQuery();
 
   const [deletePaper] = useDeletePaperMutation();
@@ -204,22 +225,26 @@ const ViewPaperPage = () => {
     const e = {};
 
     if (!form.paperType) e.paperType = "Paper Type is required";
-    if (!String(form.paperTitle || "").trim())
+    if (!String(form.paperTitle || "").trim()) {
       e.paperTitle = "Paper Title is required";
+    }
 
     const t = Number(form.timeMinutes);
     if (!t || t < 1 || t > 180) e.timeMinutes = "Time must be 1..180 minutes";
 
     const qc = Number(form.questionCount);
-    if (!qc || qc < 1 || qc > 50)
+    if (!qc || qc < 1 || qc > 50) {
       e.questionCount = "Question Count must be 1..50";
+    }
 
     const oq = Number(form.oneQuestionAnswersCount);
-    if (!oq || oq < 1 || oq > 6)
+    if (!oq || oq < 1 || oq > 6) {
       e.oneQuestionAnswersCount = "Answers per question must be 1..6";
+    }
 
-    if (!String(form.createdPersonName || "").trim())
+    if (!String(form.createdPersonName || "").trim()) {
       e.createdPersonName = "Created Person Name is required";
+    }
 
     if (!paymentTypes.includes(String(form.payment))) e.payment = "Invalid payment";
 
@@ -245,6 +270,7 @@ const ViewPaperPage = () => {
     try {
       await deletePaper(paperId).unwrap();
       alert("✅ Paper deleted");
+      refetch();
     } catch (err) {
       alert(err?.data?.message || "❌ Failed to delete");
     }
@@ -272,6 +298,8 @@ const ViewPaperPage = () => {
       await updatePaper({ paperId: selected._id, patch }).unwrap();
       alert("✅ Paper updated");
       setEditOpen(false);
+      setSelected(null);
+      refetch();
     } catch (err) {
       alert(err?.data?.message || "❌ Failed to update");
     }
@@ -293,7 +321,10 @@ const ViewPaperPage = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setCurrentPage(1)}
+              onClick={() => {
+                setCurrentPage(1);
+                refetch();
+              }}
               className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
             >
               Refresh View
