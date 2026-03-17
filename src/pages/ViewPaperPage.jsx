@@ -58,12 +58,7 @@ const prettifyStream = (value) => {
 };
 
 const getGradeLabel = (paper) => {
-  const gradeValue = Number(paper?.meta?.grade || 0);
-  const hasStream = Boolean(paper?.meta?.stream);
-
-  if (hasStream || gradeValue === 12 || gradeValue === 13) return "A/L";
-  if (gradeValue >= 1 && gradeValue <= 11) return `Grade ${gradeValue}`;
-  return "-";
+  return paper?.meta?.gradeLabel || "-";
 };
 
 const getSubjectLabel = (paper) => {
@@ -86,7 +81,7 @@ const ModalShell = ({ open, title, children, onClose, maxWidth = "max-w-xl" }) =
       <div
         className={`relative w-full ${maxWidth} overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg`}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
+        <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
           <div className="text-base font-semibold text-gray-800">{title}</div>
           <button
             type="button"
@@ -188,7 +183,7 @@ const ViewPaperPage = () => {
     paperTitle: "",
     timeMinutes: "",
     questionCount: "",
-    oneQuestionAnswersCount: 5,
+    oneQuestionAnswersCount: 4,
     createdPersonName: "",
     payment: "free",
     amount: "",
@@ -269,10 +264,10 @@ const ViewPaperPage = () => {
     if (!window.confirm("Delete this paper?")) return;
     try {
       await deletePaper(paperId).unwrap();
-      alert("✅ Paper deleted");
+      alert("Paper deleted");
       refetch();
     } catch (err) {
-      alert(err?.data?.message || "❌ Failed to delete");
+      alert(err?.data?.message || "Failed to delete");
     }
   };
 
@@ -296,17 +291,17 @@ const ViewPaperPage = () => {
       };
 
       await updatePaper({ paperId: selected._id, patch }).unwrap();
-      alert("✅ Paper updated");
+      alert("Paper updated");
       setEditOpen(false);
       setSelected(null);
       refetch();
     } catch (err) {
-      alert(err?.data?.message || "❌ Failed to update");
+      alert(err?.data?.message || "Failed to update");
     }
   };
 
   return (
-    <div className="flex w-full justify-center ">
+    <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -357,7 +352,7 @@ const ViewPaperPage = () => {
           <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[1350px] table-fixed border-separate border-spacing-0">
               <thead>
-                <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
+                <tr className="bg-white text-left text-[13px] font-medium text-gray-600">
                   <th className="w-[6%] border-b border-r border-gray-200 px-4 py-3">
                     ID
                   </th>

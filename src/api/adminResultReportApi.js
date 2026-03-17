@@ -20,11 +20,14 @@ export const adminResultReportApi = createApi({
         const search = new URLSearchParams();
 
         if (params.paperType) search.set("paperType", params.paperType);
-        if (params.subject) search.set("subject", params.subject);
         if (params.grade) search.set("grade", params.grade);
+        if (params.stream) search.set("stream", params.stream);
+        if (params.subject) search.set("subject", params.subject);
         if (params.completedPaperCount) {
           search.set("completedPaperCount", params.completedPaperCount);
         }
+        if (params.page) search.set("page", String(params.page));
+        if (params.limit) search.set("limit", String(params.limit));
 
         const queryString = search.toString();
 

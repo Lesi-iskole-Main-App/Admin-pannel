@@ -6,17 +6,12 @@ import {
   useGetStudentsQuery,
   useBanStudentMutation,
   useUnbanStudentMutation,
+  useBulkRemoveClassAccessMutation,
 } from "../api/studentApi";
 import {
   setStudentFilters,
   resetStudentFilters,
 } from "../api/features/studentSlice";
-
-const levelsToGrades = {
-  primary: Array.from({ length: 5 }, (_, i) => String(i + 1)),
-  secondary: Array.from({ length: 6 }, (_, i) => String(i + 6)),
-  al: ["12", "13"],
-};
 
 const Modal = ({ open, title, onClose, children, footer }) => {
   if (!open) return null;
@@ -58,7 +53,13 @@ const Input = ({ label, value, onChange, placeholder = "" }) => (
   </div>
 );
 
-const Select = ({ label, value, onChange, options, placeholder = "Select" }) => (
+const Select = ({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = "Select",
+}) => (
   <div className="w-full">
     <label className="text-xs font-semibold text-gray-600">{label}</label>
     <select
@@ -119,15 +120,47 @@ const StudentsPage = () => {
   const { data: optData } = useGetStudentOptionsQuery();
   const districts = optData?.districts || [];
   const classes = optData?.classes || [];
+  const batchNumbers = optData?.batchNumbers || [];
   const levelOptions = optData?.levels || ["primary", "secondary", "al"];
 
   const gradeOptions = useMemo(() => {
-    const lv = String(filters.level || "").trim();
-    if (lv) return levelsToGrades[lv] || [];
-    return (optData?.grades || []).map((g) => String(g));
-  }, [filters.level, optData?.grades]);
+    const all = optData?.grades || [];
+    if (!filters.level || filters.level === "al") return [];
+    return all
+      .filter((g) => String(g.level) === String(filters.level))
+      .map((g) => ({
+        value: g.grade,
+        label: `Grade ${g.grade}`,
+      }));
+  }, [optData?.grades, filters.level]);
 
-  const { data, isLoading, isFetching, error } = useGetStudentsQuery(filters);
+  const filteredClasses = useMemo(() => {
+    return classes.filter((cls) => {
+      if (filters.level) {
+        if (filters.level === "al" && cls.flowType !== "al") return false;
+        if (filters.level !== "al" && cls.flowType === "al") return false;
+      }
+
+      if (
+        filters.grade &&
+        String(cls.grade || "") !== String(filters.grade || "")
+      ) {
+        return false;
+      }
+
+      if (
+        filters.batchNumber &&
+        String(cls.batchNumber || "") !== String(filters.batchNumber || "")
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [classes, filters.level, filters.grade, filters.batchNumber]);
+
+  const { data, isLoading, isFetching, error, refetch } =
+    useGetStudentsQuery(filters);
 
   const rows = data?.rows || [];
   const total = data?.total || 0;
@@ -135,18 +168,32 @@ const StudentsPage = () => {
   const [banModalOpen, setBanModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
 
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkClassId, setBulkClassId] = useState("");
+
   const [banStudent, { isLoading: banning }] = useBanStudentMutation();
   const [unbanStudent, { isLoading: unbanning }] = useUnbanStudentMutation();
+  const [bulkRemoveClassAccess, { isLoading: bulkRemoving }] =
+    useBulkRemoveClassAccessMutation();
 
   useEffect(() => {
     if (
       filters.level &&
       filters.grade &&
-      !gradeOptions.includes(String(filters.grade))
+      !gradeOptions.some((g) => String(g.value) === String(filters.grade))
     ) {
-      dispatch(setStudentFilters({ grade: "" }));
+      dispatch(setStudentFilters({ grade: "", classId: "" }));
     }
   }, [filters.level, filters.grade, gradeOptions, dispatch]);
+
+  useEffect(() => {
+    if (
+      filters.classId &&
+      !filteredClasses.some((c) => String(c.id) === String(filters.classId))
+    ) {
+      dispatch(setStudentFilters({ classId: "" }));
+    }
+  }, [filters.classId, filteredClasses, dispatch]);
 
   const onSearch = (e) => {
     e.preventDefault();
@@ -172,8 +219,37 @@ const StudentsPage = () => {
         await banStudent(selected._id).unwrap();
       }
       setBanModalOpen(false);
+      refetch();
     } catch (err) {
       console.error("doBanToggle error:", err);
+    }
+  };
+
+  const doBulkRemove = async () => {
+    if (!bulkClassId) {
+      alert("Select class first");
+      return;
+    }
+
+    const ok = window.confirm(
+      "Remove access for all students in this selected class?"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await bulkRemoveClassAccess({ classId: bulkClassId }).unwrap();
+      alert(
+        `${res?.message || "Access removed"}${
+          res?.removedCount ? ` (${res.removedCount})` : ""
+        }`
+      );
+      setBulkClassId("");
+      setBulkModalOpen(false);
+      refetch();
+    } catch (err) {
+      alert(
+        String(err?.data?.message || err?.error || "Bulk remove access failed")
+      );
     }
   };
 
@@ -200,26 +276,36 @@ const StudentsPage = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => navigate("/home")}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
-            title="Home"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkModalOpen(true)}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700"
             >
-              <path d="M3 10.5 12 3l9 7.5" />
-              <path d="M5 9.5V21h14V9.5" />
-              <path d="M9 21v-6h6v6" />
-            </svg>
-          </button>
+              Remove Access Batch/Class Wise
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/home")}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
+              title="Home"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 9.5V21h14V9.5" />
+                <path d="M9 21v-6h6v6" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <form
@@ -227,6 +313,13 @@ const StudentsPage = () => {
           className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
         >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Input
+              label="Phone Number"
+              value={filters.phonenumber}
+              onChange={(v) => dispatch(setStudentFilters({ phonenumber: v }))}
+              placeholder="+94760431068"
+            />
+
             <Select
               label="Status"
               value={filters.status}
@@ -238,20 +331,11 @@ const StudentsPage = () => {
               placeholder="Select status"
             />
 
-            <Input
-              label="Phone Number"
-              value={filters.phonenumber}
-              onChange={(v) =>
-                dispatch(setStudentFilters({ phonenumber: v }))
-              }
-              placeholder="0771234567"
-            />
-
             <Select
               label="District"
               value={filters.district}
               onChange={(v) => dispatch(setStudentFilters({ district: v }))}
-              options={districts}
+              options={districts.map((x) => ({ value: x, label: x }))}
               placeholder="Select district"
             />
 
@@ -259,7 +343,14 @@ const StudentsPage = () => {
               label="Level"
               value={filters.level}
               onChange={(v) =>
-                dispatch(setStudentFilters({ level: v, grade: "" }))
+                dispatch(
+                  setStudentFilters({
+                    level: v,
+                    grade: "",
+                    batchNumber: "",
+                    classId: "",
+                  })
+                )
               }
               options={levelOptions.map((x) => ({
                 value: x,
@@ -271,18 +362,37 @@ const StudentsPage = () => {
             <Select
               label="Grade"
               value={filters.grade}
-              onChange={(v) => dispatch(setStudentFilters({ grade: v }))}
+              onChange={(v) =>
+                dispatch(setStudentFilters({ grade: v, classId: "" }))
+              }
               options={gradeOptions}
-              placeholder={filters.level ? "Select grade" : "Select level first"}
+              placeholder={
+                filters.level && filters.level !== "al"
+                  ? "Select grade"
+                  : "Select level first"
+              }
             />
 
             <Select
-              label="Class Name"
+              label="Batch Number"
+              value={filters.batchNumber}
+              onChange={(v) =>
+                dispatch(setStudentFilters({ batchNumber: v, classId: "" }))
+              }
+              options={batchNumbers.map((x) => ({
+                value: x,
+                label: `Batch ${x}`,
+              }))}
+              placeholder="Select batch"
+            />
+
+            <Select
+              label="Class"
               value={filters.classId}
               onChange={(v) => dispatch(setStudentFilters({ classId: v }))}
-              options={classes.map((c) => ({
+              options={filteredClasses.map((c) => ({
                 value: c.id,
-                label: c.className,
+                label: `${c.className} • Batch ${c.batchNumber}`,
               }))}
               placeholder="Select class"
             />
@@ -317,17 +427,18 @@ const StudentsPage = () => {
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1400px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr>
-                  <Th className="w-[15%]">Student Name</Th>
-                  <Th className="w-[14%]">Phone Number</Th>
+                  <Th className="w-[14%]">Student Name</Th>
+                  <Th className="w-[12%]">Phone Number</Th>
                   <Th className="w-[10%]">District</Th>
-                  <Th className="w-[10%]">Town</Th>
-                  <Th className="w-[15%]">Address</Th>
+                  <Th className="w-[9%]">Town</Th>
+                  <Th className="w-[14%]">Address</Th>
                   <Th className="w-[8%]">Level</Th>
                   <Th className="w-[7%]">Grade</Th>
-                  <Th className="w-[13%]">Class Name</Th>
+                  <Th className="w-[10%]">Batch</Th>
+                  <Th className="w-[16%]">Class Name</Th>
                   <Th className="w-[8%]">Status</Th>
                   <Th className="w-[10%] border-r-0 text-center">Operation</Th>
                 </tr>
@@ -337,7 +448,7 @@ const StudentsPage = () => {
                 {error ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="px-6 py-10 text-center text-sm font-medium text-red-600"
                     >
                       {errorText}
@@ -346,7 +457,7 @@ const StudentsPage = () => {
                 ) : rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="px-6 py-10 text-center text-sm text-gray-500"
                     >
                       No students found
@@ -371,6 +482,23 @@ const StudentsPage = () => {
 
                       <Td className="truncate">
                         {s.selectedGradeNumber ? String(s.selectedGradeNumber) : "-"}
+                      </Td>
+
+                      <Td>
+                        {Array.isArray(s.batchNumbers) && s.batchNumbers.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {s.batchNumbers.map((batch, idx) => (
+                              <span
+                                key={`${batch}-${idx}`}
+                                className="inline-flex rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700"
+                              >
+                                Batch {batch}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </Td>
 
                       <Td>
@@ -483,6 +611,53 @@ const StudentsPage = () => {
             {selected?.isActive === false
               ? "Are you sure you want to unban this student?"
               : "Are you sure you want to ban this student? After banning, the student cannot access protected routes because isActive becomes false."}
+          </div>
+        </Modal>
+
+        <Modal
+          open={bulkModalOpen}
+          title="Remove Access Class Batch Wise"
+          onClose={() => {
+            setBulkModalOpen(false);
+            setBulkClassId("");
+          }}
+          footer={
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setBulkModalOpen(false);
+                  setBulkClassId("");
+                }}
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doBulkRemove}
+                disabled={bulkRemoving}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {bulkRemoving ? "Processing..." : "Remove Access"}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-700">
+              Select one class with batch number. This removes approved access
+              for all students in that selected class.
+            </p>
+
+            <Select
+              label="Class + Batch"
+              value={bulkClassId}
+              onChange={setBulkClassId}
+              options={classes.map((c) => ({
+                value: c.id,
+                label: `${c.className} • Batch ${c.batchNumber}`,
+              }))}
+              placeholder="Select class"
+            />
           </div>
         </Modal>
       </div>

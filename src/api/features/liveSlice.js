@@ -1,22 +1,19 @@
-// src/api/features/liveSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
-  selectedLiveId: null,
+  search: "",
 };
 
 const liveSlice = createSlice({
   name: "liveUi",
   initialState,
   reducers: {
-    setSelectedLiveId: (state, action) => {
-      state.selectedLiveId = action.payload || null;
+    setLiveSearch: (state, action) => {
+      state.search = action.payload || "";
     },
-    clearSelectedLiveId: (state) => {
-      state.selectedLiveId = null;
-    },
+    resetLiveUi: () => initialState,
   },
 });
 
-export const { setSelectedLiveId, clearSelectedLiveId } = liveSlice.actions;
+export const { setLiveSearch, resetLiveUi } = liveSlice.actions;
 export default liveSlice.reducer;

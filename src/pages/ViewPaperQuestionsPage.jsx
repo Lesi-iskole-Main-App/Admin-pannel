@@ -1,4 +1,3 @@
-// src/pages/ViewPaperQuestions.page.jsx
 import React, { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGetQuestionsByPaperQuery } from "../api/questionApi";
@@ -40,7 +39,7 @@ export default function ViewPaperQuestionsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F8FAFC] px-3 py-6">
+      <div className="flex min-h-screen w-full items-center justify-center px-3 py-6">
         <div className="w-full max-w-xl border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
           Loading questions...
         </div>
@@ -50,7 +49,7 @@ export default function ViewPaperQuestionsPage() {
 
   if (isError) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F8FAFC] px-3 py-6">
+      <div className="flex min-h-screen w-full items-center justify-center px-3 py-6">
         <div className="w-full max-w-2xl border border-gray-200 bg-white p-6">
           <div className="text-lg font-semibold text-red-600">Failed to load</div>
           <div className="mt-2 text-sm text-gray-700">
@@ -77,7 +76,7 @@ export default function ViewPaperQuestionsPage() {
 
   if (!paper) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F8FAFC] px-3 py-6">
+      <div className="flex min-h-screen w-full items-center justify-center px-3 py-6">
         <div className="w-full max-w-xl border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
           Paper not found
         </div>
@@ -86,10 +85,9 @@ export default function ViewPaperQuestionsPage() {
   }
 
   return (
-    <div className="flex w-full justify-center bg-[#F8FAFC]">
+    <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto w-full max-w-5xl">
-          {/* Header */}
           <div className="border border-gray-200 bg-white p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -152,7 +150,6 @@ export default function ViewPaperQuestionsPage() {
             </div>
           </div>
 
-          {/* Questions */}
           <div className="mt-5 space-y-5">
             {sorted.length === 0 ? (
               <div className="border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
@@ -165,8 +162,7 @@ export default function ViewPaperQuestionsPage() {
 
                 return (
                   <div key={q._id} className="border border-gray-200 bg-white">
-                    {/* Question header */}
-                    <div className="border-b border-gray-200 bg-[#F8FAFC] px-5 py-4 sm:px-6">
+                    <div className="border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="text-sm font-medium text-gray-800">
@@ -203,7 +199,6 @@ export default function ViewPaperQuestionsPage() {
                       )}
                     </div>
 
-                    {/* Answers section */}
                     <div className="px-5 py-5 sm:px-6">
                       <div className="mb-3 text-sm font-medium text-gray-800">
                         Answers
@@ -257,9 +252,8 @@ export default function ViewPaperQuestionsPage() {
                         })}
                       </div>
 
-                      {/* Explanation */}
                       {(q?.explanationVideoUrl || q?.explanationText) && (
-                        <div className="mt-5 border border-gray-200 bg-[#F8FAFC] p-4">
+                        <div className="mt-5 border border-gray-200 bg-white p-4">
                           <div className="text-sm font-medium text-gray-800">
                             Explanation
                           </div>

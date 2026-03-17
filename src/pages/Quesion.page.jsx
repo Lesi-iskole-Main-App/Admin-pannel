@@ -1,4 +1,3 @@
-// src/pages/Question.page.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGetPapersQuery, usePublishPaperMutation } from "../api/paperApi";
@@ -91,7 +90,6 @@ export default function QuestionPage() {
 
   const onView = (paperId) => navigate(`/paper/${paperId}/questions/view`);
   const onEditQuestions = (paperId) => navigate(`/paper/${paperId}/questions/create`);
-  const onEditPaper = (paperId) => navigate(`/paper/${paperId}/edit`);
 
   const onPublish = async (paperId) => {
     try {
@@ -105,7 +103,7 @@ export default function QuestionPage() {
 
   if (isLoading) {
     return (
-      <div className="flex w-full justify-center bg-[#F8FAFC]">
+      <div className="flex w-full justify-center">
         <div className="min-w-0 w-full max-w-[95vw] px-3 py-8 sm:px-6 sm:py-10">
           <div className="border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
             Loading...
@@ -116,7 +114,7 @@ export default function QuestionPage() {
   }
 
   return (
-    <div className="flex w-full justify-center ">
+    <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -166,12 +164,11 @@ export default function QuestionPage() {
           </div>
         </div>
 
-        {/* TABLE */}
         <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
             <table className="w-full min-w-[1450px] table-fixed border-separate border-spacing-0">
               <thead>
-                <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
+                <tr className="bg-white text-left text-[13px] font-medium text-gray-600">
                   <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">
                     Paper Name
                   </th>
@@ -203,7 +200,7 @@ export default function QuestionPage() {
                 {paginatedPapers.map((p) => {
                   const paperId = p?._id;
                   const name = fmt(p?.paperTitle) || "-";
-                  const grade = p?.meta?.grade ?? "-";
+                  const grade = p?.meta?.gradeLabel || "-";
                   const subject = fmt(p?.meta?.subject);
                   const stream = fmt(p?.meta?.stream);
                   const subjectStream = stream
@@ -324,7 +321,6 @@ export default function QuestionPage() {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}

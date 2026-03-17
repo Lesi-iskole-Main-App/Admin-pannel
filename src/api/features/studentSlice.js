@@ -8,6 +8,7 @@ const initialState = {
     level: "",
     grade: "",
     classId: "",
+    batchNumber: "",
     page: 1,
     limit: 20,
   },
@@ -31,6 +32,7 @@ const studentSlice = createSlice({
         level: "",
         grade: "",
         classId: "",
+        batchNumber: "",
         page: 1,
         limit: 20,
       };

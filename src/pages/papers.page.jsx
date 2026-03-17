@@ -78,12 +78,8 @@ const PapersPage = () => {
 
   const getGradeLabel = (grade) => {
     if (!grade) return "";
-
-    const title = String(grade.title || "").trim();
-    if (title) return title;
-
-    if (grade.flowType === "al") return `Grade ${grade.grade} A/L`;
-    return `Grade ${grade.grade}`;
+    if (grade.flowType === "al") return "A/L";
+    return String(grade.title || `Grade ${grade.grade}`).trim();
   };
 
   const getStreamLabel = (stream) => {
@@ -103,7 +99,10 @@ const PapersPage = () => {
       ["common", "Common"],
     ]);
 
-    return map.get(normalized) || normalized.replace(/\b\w/g, (m) => m.toUpperCase());
+    return (
+      map.get(normalized) ||
+      normalized.replace(/\b\w/g, (m) => m.toUpperCase())
+    );
   };
 
   const setField = (key, value) => {
@@ -203,30 +202,11 @@ const PapersPage = () => {
     ev.preventDefault();
     if (!validate()) return;
 
-    const selectedNormalSubject =
-      !isAL
-        ? subjectList.find((s) => String(s._id) === String(form.subjectId)) || null
-        : null;
-
-    const selectedALSubject =
-      isAL
-        ? streamSubjects.find(
-            (s) => String(s._id) === String(form.streamSubjectId)
-          ) || null
-        : null;
-
     const payload = {
       gradeId: form.gradeId || null,
-
       subjectId: isAL ? null : form.subjectId || null,
       streamId: isAL ? form.streamId || null : null,
       streamSubjectId: isAL ? form.streamSubjectId || null : null,
-
-      stream: isAL ? (selectedStream?.stream || null) : null,
-      subject: isAL
-        ? selectedALSubject?.subject || null
-        : selectedNormalSubject?.subject || null,
-
       paperType: form.paperType,
       paperTitle: String(form.paperTitle || "").trim(),
       timeMinutes: Number(form.timeMinutes),
@@ -239,12 +219,8 @@ const PapersPage = () => {
     };
 
     try {
-      console.log("CREATE PAPER PAYLOAD =>", payload);
-
       const res = await createPaper(payload).unwrap();
       const createdPaper = res?.paper || null;
-
-      console.log("CREATE PAPER RESPONSE =>", res);
 
       dispatch(setLastCreatedPaper(createdPaper));
 
@@ -254,16 +230,10 @@ const PapersPage = () => {
         return;
       }
 
-      alert("✅ Paper created!");
+      alert("Paper created");
     } catch (err) {
       console.error("CREATE PAPER ERROR =>", err);
-      console.error("BACKEND MESSAGE =>", err?.data);
-
-      alert(
-        err?.data?.message ||
-          err?.error ||
-          "❌ Failed to create paper"
-      );
+      alert(err?.data?.message || err?.error || "Failed to create paper");
     }
   };
 
@@ -276,7 +246,7 @@ const PapersPage = () => {
               Paper Creation
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Create a new paper with available grade, subject, timing, payment
+              Create a new paper with your grade rule
             </p>
           </div>
 

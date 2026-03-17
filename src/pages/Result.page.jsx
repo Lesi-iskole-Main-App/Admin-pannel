@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGetAdminResultReportQuery } from "../api/adminResultReportApi";
 
 const DEFAULT_PAPER_TYPE = "Daily Quiz";
+const PAGE_SIZE = 20;
 
 const Input = ({ label, value, onChange, placeholder = "" }) => (
   <div className="w-full">
@@ -50,19 +51,33 @@ const Td = ({ children, className = "" }) => (
   </td>
 );
 
+const getGradeNumberFromLabel = (value) => {
+  const num = Number(String(value || "").replace(/[^\d]/g, ""));
+  return Number.isFinite(num) ? num : 0;
+};
+
+const isALGradeLabel = (value) => {
+  const num = getGradeNumberFromLabel(value);
+  return num >= 12;
+};
+
 const Result = () => {
   const navigate = useNavigate();
 
   const [paperType, setPaperType] = useState(DEFAULT_PAPER_TYPE);
-  const [subject, setSubject] = useState("");
+  const [stream, setStream] = useState("");
   const [grade, setGrade] = useState("");
+  const [subject, setSubject] = useState("");
   const [completedPaperCount, setCompletedPaperCount] = useState("");
 
   const [appliedFilters, setAppliedFilters] = useState({
     paperType: DEFAULT_PAPER_TYPE,
-    subject: "",
+    stream: "",
     grade: "",
+    subject: "",
     completedPaperCount: "",
+    page: 1,
+    limit: PAGE_SIZE,
   });
 
   const [selectedSubjectRow, setSelectedSubjectRow] = useState(null);
@@ -88,13 +103,21 @@ const Result = () => {
     return Array.from(set);
   }, [rawPaperTypeOptions]);
 
-  const subjectOptions = useMemo(() => {
-    return Array.isArray(data?.filters?.subjects) ? data.filters.subjects : [];
+  const streamOptions = useMemo(() => {
+    return Array.isArray(data?.filters?.streams) ? data.filters.streams : [];
   }, [data]);
 
   const gradeOptions = useMemo(() => {
     return Array.isArray(data?.filters?.grades) ? data.filters.grades : [];
   }, [data]);
+
+  const subjectOptions = useMemo(() => {
+    return Array.isArray(data?.filters?.subjects) ? data.filters.subjects : [];
+  }, [data]);
+
+  const currentPage = Number(data?.pagination?.page || 1);
+  const totalPages = Number(data?.pagination?.totalPages || 1);
+  const totalRows = Number(data?.pagination?.totalRows || data?.total || 0);
 
   const errorMessage = useMemo(() => {
     if (!error) return "";
@@ -108,34 +131,71 @@ const Result = () => {
     return String(data?.message || "").trim();
   }, [data]);
 
+  const selectedGradeIsAL = useMemo(() => isALGradeLabel(grade), [grade]);
+
+  useEffect(() => {
+    if (!selectedGradeIsAL && stream) {
+      setStream("");
+    }
+  }, [selectedGradeIsAL, stream]);
+
+  const canOpenReport = useMemo(() => {
+    if (!appliedFilters.paperType || !appliedFilters.grade || !appliedFilters.subject) {
+      return false;
+    }
+    if (isALGradeLabel(appliedFilters.grade) && !appliedFilters.stream) {
+      return false;
+    }
+    return true;
+  }, [appliedFilters]);
+
   const handleSearch = (e) => {
     e.preventDefault();
+
     setAppliedFilters({
-      paperType: paperType.trim(),
-      subject: subject.trim(),
-      grade: grade.trim(),
-      completedPaperCount: completedPaperCount.trim(),
+      paperType: String(paperType || "").trim(),
+      stream: selectedGradeIsAL ? String(stream || "").trim() : "",
+      grade: String(grade || "").trim(),
+      subject: String(subject || "").trim(),
+      completedPaperCount: String(completedPaperCount || "").trim(),
+      page: 1,
+      limit: PAGE_SIZE,
     });
   };
 
   const handleReset = () => {
     setPaperType(DEFAULT_PAPER_TYPE);
-    setSubject("");
+    setStream("");
     setGrade("");
+    setSubject("");
     setCompletedPaperCount("");
+    setSelectedSubjectRow(null);
+    setSelectedReport(null);
+
     setAppliedFilters({
       paperType: DEFAULT_PAPER_TYPE,
-      subject: "",
+      stream: "",
       grade: "",
+      subject: "",
       completedPaperCount: "",
+      page: 1,
+      limit: PAGE_SIZE,
     });
+  };
+
+  const handlePageChange = (nextPage) => {
+    const safePage = Math.max(1, Math.min(totalPages, nextPage));
+    setAppliedFilters((prev) => ({
+      ...prev,
+      page: safePage,
+      limit: PAGE_SIZE,
+    }));
   };
 
   return (
     <>
       <div className="flex w-full justify-center">
         <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
-          {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
@@ -184,12 +244,11 @@ const Result = () => {
             </div>
           </div>
 
-          {/* Filter Box */}
           <form
             onSubmit={handleSearch}
             className="mt-5 border border-gray-200 bg-white p-4 sm:p-5"
           >
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
               <Select
                 label="Paper Type"
                 value={paperType}
@@ -199,11 +258,11 @@ const Result = () => {
               />
 
               <Select
-                label="Subject"
-                value={subject}
-                onChange={setSubject}
-                options={subjectOptions}
-                placeholder="Select Subject"
+                label="Stream"
+                value={stream}
+                onChange={setStream}
+                options={streamOptions}
+                placeholder={selectedGradeIsAL ? "Select Stream" : "Not required"}
               />
 
               <Select
@@ -212,6 +271,14 @@ const Result = () => {
                 onChange={setGrade}
                 options={gradeOptions}
                 placeholder="Select Grade"
+              />
+
+              <Select
+                label="Subject"
+                value={subject}
+                onChange={setSubject}
+                options={subjectOptions}
+                placeholder="Select Subject"
               />
 
               <Input
@@ -239,9 +306,7 @@ const Result = () => {
               </button>
             </div>
 
-            <div className="mt-3 text-xs text-gray-500">
-              Total: {Number(data?.total || rows.length || 0)}
-            </div>
+            <div className="mt-3 text-xs text-gray-500">Total: {totalRows}</div>
 
             {infoMessage ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -256,35 +321,33 @@ const Result = () => {
             ) : null}
           </form>
 
-          {/* Table */}
           <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
             <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[1550px] table-fixed border-separate border-spacing-0">
+              <table className="w-full min-w-[1450px] table-fixed border-separate border-spacing-0">
                 <thead>
                   <tr>
-                    <Th className="w-[18%]">Student Name</Th>
+                    <Th className="w-[22%]">Student Name</Th>
                     <Th className="w-[12%]">Grade</Th>
-                    <Th className="w-[10%] text-center">Island Rank</Th>
+                    <Th className="w-[11%] text-center">Island Rank</Th>
                     <Th className="w-[12%] text-center">Subjects</Th>
-                    <Th className="w-[12%]">Completed Paper Count</Th>
-                    <Th className="w-[10%] text-center">Free Paper Count</Th>
-                    <Th className="w-[10%] text-center">Practise Paper Count</Th>
-                    <Th className="w-[10%] text-center">Paid Paper Count</Th>
-                    <Th className="w-[16%] border-r-0 text-center">View Report</Th>
+                    <Th className="w-[15%] text-center">Completed Paper Count</Th>
+                    <Th className="w-[12%] text-center">Free Paper Count</Th>
+                    <Th className="w-[12%] text-center">Paid Paper Count</Th>
+                    <Th className="w-[14%] border-r-0 text-center">View Report</Th>
                   </tr>
                 </thead>
 
                 <tbody className="bg-white">
                   {isLoading || isFetching ? (
                     <tr>
-                      <td className="px-6 py-10 text-center text-gray-500" colSpan={9}>
+                      <td className="px-6 py-10 text-center text-gray-500" colSpan={8}>
                         Loading results...
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td className="px-6 py-10 text-center text-gray-500" colSpan={9}>
-                        {subject ? "No results found" : "Please first choose subject"}
+                      <td className="px-6 py-10 text-center text-gray-500" colSpan={8}>
+                        No results found
                       </td>
                     </tr>
                   ) : (
@@ -310,27 +373,29 @@ const Result = () => {
                           </button>
                         </Td>
 
-                        <Td className="truncate">
+                        <Td className="text-center">
                           {Number(r.completedPapersCount || 0)}
                         </Td>
 
-                        <Td className="text-center">
-                          {Number(r.freePaperCount || 0)}
-                        </Td>
+                        <Td className="text-center">{Number(r.freePaperCount || 0)}</Td>
 
-                        <Td className="text-center">
-                          {Number(r.practisePaperCount || 0)}
-                        </Td>
-
-                        <Td className="text-center">
-                          {Number(r.paidPaperCount || 0)}
-                        </Td>
+                        <Td className="text-center">{Number(r.paidPaperCount || 0)}</Td>
 
                         <Td className="border-r-0 text-center">
                           <button
                             type="button"
                             onClick={() => setSelectedReport(r)}
-                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-blue-700"
+                            disabled={!canOpenReport}
+                            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition ${
+                              canOpenReport
+                                ? "bg-blue-600 hover:bg-blue-700"
+                                : "cursor-not-allowed bg-gray-300"
+                            }`}
+                            title={
+                              canOpenReport
+                                ? "View Report"
+                                : "Select paper type, grade, subject and stream for A/L"
+                            }
                           >
                             View Report
                           </button>
@@ -342,16 +407,45 @@ const Result = () => {
               </table>
             </div>
 
-            {/* Footer */}
-            <div className="flex flex-col gap-2 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-              <span>Showing {rows.length} record(s)</span>
-              <span>Highest score result only</span>
+            <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Showing page {currentPage} of {totalPages}
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  className={`inline-flex h-9 items-center justify-center rounded-lg border px-3 text-sm ${
+                    currentPage <= 1
+                      ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Prev
+                </button>
+
+                <span className="text-sm font-medium text-gray-700">{currentPage}</span>
+
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  className={`inline-flex h-9 items-center justify-center rounded-lg border px-3 text-sm ${
+                    currentPage >= totalPages
+                      ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Subjects Modal */}
       {selectedSubjectRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-lg border border-gray-200 bg-white shadow-xl">
@@ -405,7 +499,6 @@ const Result = () => {
         </div>
       )}
 
-      {/* Report Modal */}
       {selectedReport && (
         <div className="fixed inset-0 z-50 bg-[#F3F4F6]">
           <button
@@ -429,7 +522,7 @@ const Result = () => {
           </button>
 
           <div className="flex min-h-screen items-center justify-center px-4 py-16">
-            <div className="w-full max-w-3xl rounded-2xl bg-[#F7F7F7] px-6 py-8 shadow-sm">
+            <div className="w-full max-w-5xl rounded-2xl bg-[#F7F7F7] px-6 py-8 shadow-sm">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-200">
                 <svg viewBox="0 0 64 64" className="h-12 w-12">
                   <circle cx="32" cy="24" r="12" fill="#F2B07B" />
@@ -444,6 +537,12 @@ const Result = () => {
                 </p>
                 <p className="mt-1 text-sm font-medium text-gray-700">
                   Grade : {selectedReport.grade}
+                </p>
+                <p className="mt-1 text-sm font-medium text-gray-700">
+                  Stream : {selectedReport.stream || "-"}
+                </p>
+                <p className="mt-1 text-sm font-medium text-gray-700">
+                  Subject : {selectedReport.subjects?.[0] || appliedFilters.subject || "-"}
                 </p>
               </div>
 
@@ -472,16 +571,16 @@ const Result = () => {
                       selectedReport.results.map((item, index) => (
                         <tr key={`${selectedReport.id}-${index}`}>
                           <td className="border-b border-r border-gray-300 px-3 py-4 text-[12px] text-gray-700">
-                            {item.paperName}
+                            {item.paperName || "-"}
                           </td>
                           <td className="border-b border-r border-gray-300 px-3 py-4 text-[12px] text-gray-700">
-                            {item.correctAnswers}
+                            {Number(item.correctAnswers || 0)}
                           </td>
                           <td className="border-b border-r border-gray-300 px-3 py-4 text-[12px] text-gray-700">
-                            {item.marks}
+                            {Number(item.marks || 0)}
                           </td>
                           <td className="border-b border-gray-300 px-3 py-4 text-[12px] text-gray-700">
-                            {item.progress}
+                            {item.progress || "0%"}
                           </td>
                         </tr>
                       ))

@@ -36,7 +36,6 @@ import studentReducer from "./features/studentSlice";
 import { studentApi } from "./studentApi";
 
 import { recordingApi } from "./recordingApi";
-
 import { adminResultReportApi } from "./adminResultReportApi";
 
 export const store = configureStore({

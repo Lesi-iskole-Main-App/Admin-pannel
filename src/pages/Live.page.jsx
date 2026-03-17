@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { useGetAllClassesQuery } from "../api/classApi";
 import {
-  useGetAllLivesQuery,
-  useCreateLiveMutation,
-  useUpdateLiveMutation,
-  useDeleteLiveMutation,
-  useGetLiveByIdQuery,
-} from "../api/liveApi";
+  useDeleteClassMutation,
+  useGetAllClassesQuery,
+  useCreateClassMutation,
+  useGetClassByIdQuery,
+  useUpdateClassMutation,
+} from "../api/classApi";
+
+import { useGetGradesQuery } from "../api/gradeSubjectApi";
+import { useGetTeachersQuery } from "../api/teacherAssignmentApi";
 
 const ROWS_PER_PAGE = 20;
 
@@ -21,7 +23,7 @@ const ModalShell = ({ title, onClose, children }) => {
         role="button"
         tabIndex={-1}
       />
-      <div className="relative w-[95vw] max-w-[760px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+      <div className="relative w-[95vw] max-w-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
           <div className="text-base font-semibold text-gray-800">{title}</div>
           <button
@@ -52,179 +54,121 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
   );
 };
 
-const toDateInput = (d) => {
-  if (!d) return "";
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return "";
-  return dt.toISOString().slice(0, 10);
-};
+const isALGrade = (gradeLike) =>
+  gradeLike?.flowType === "al" ||
+  gradeLike === "al" ||
+  Number(gradeLike) === 12 ||
+  Number(gradeLike) === 13;
 
-const toTimeInput = (d) => {
-  if (!d) return "";
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return "";
-  return dt.toTimeString().slice(0, 5);
-};
-
-const buildScheduledAt = (date, time) => {
-  if (!date || !time) return "";
-  const dt = new Date(`${date}T${time}:00`);
-  return dt.toISOString();
-};
-
-const getNormalizedZoomLinks = (live) => {
-  if (!live) return [""];
-
-  if (Array.isArray(live.zoomLinks) && live.zoomLinks.length > 0) {
-    const cleaned = live.zoomLinks
-      .map((x) => String(x || "").trim())
-      .filter(Boolean);
-    return cleaned.length ? cleaned : [""];
-  }
-
-  if (live.zoomLink) {
-    return [String(live.zoomLink).trim()];
-  }
-
-  return [""];
-};
-
-const LivePage = () => {
+const ClassPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const action = searchParams.get("action");
-  const liveId = searchParams.get("liveId");
-  const classIdFromQuery = searchParams.get("classId");
+  const classId = searchParams.get("classId");
 
-  const goList = () => navigate("/lms/live", { replace: true });
+  const goList = () =>
+    navigate({ pathname: "/lms/class", search: "" }, { replace: true });
+
+  const openCreate = () =>
+    navigate({ pathname: "/lms/class", search: "?action=create" });
+
+  const openView = (id) =>
+    navigate({
+      pathname: "/lms/class",
+      search: `?action=view&classId=${encodeURIComponent(id)}`,
+    });
+
+  const openUpdate = (id) =>
+    navigate({
+      pathname: "/lms/class",
+      search: `?action=update&classId=${encodeURIComponent(id)}`,
+    });
+
+  const { data, isLoading, isError } = useGetAllClassesQuery();
+  const [deleteClass, { isLoading: isDeleting }] = useDeleteClassMutation();
+
+  const [createClass, { isLoading: isCreating }] = useCreateClassMutation();
+  const [updateClass, { isLoading: isUpdating }] = useUpdateClassMutation();
+
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const shouldLoadDetails =
+    (action === "view" || action === "update") && !!classId;
 
   const {
     data: classRes,
     isLoading: classLoading,
     isError: classError,
-  } = useGetAllClassesQuery();
-
-  const classes = classRes?.classes || [];
-
-  const {
-    data: liveRes,
-    isLoading: liveLoading,
-    isError: liveError,
-  } = useGetAllLivesQuery();
-
-  const lives = liveRes?.lives || [];
-
-  const [createLive, { isLoading: creating }] = useCreateLiveMutation();
-  const [updateLive, { isLoading: updating }] = useUpdateLiveMutation();
-  const [deleteLive, { isLoading: deleting }] = useDeleteLiveMutation();
-
-  const {
-    data: liveByIdRes,
-    isLoading: liveByIdLoading,
-    isError: liveByIdError,
-  } = useGetLiveByIdQuery(
-    { classId: classIdFromQuery, liveId },
-    {
-      skip:
-        !(action === "update" || action === "view") ||
-        !liveId ||
-        !classIdFromQuery,
-    }
-  );
-
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const [form, setForm] = useState({
-    classId: "",
-    zoomLinks: [""],
-    date: "",
-    time: "",
+  } = useGetClassByIdQuery(classId, {
+    skip: !shouldLoadDetails,
   });
 
-  const selectedClass = useMemo(() => {
-    return classes.find((c) => String(c?._id) === String(form.classId));
-  }, [classes, form.classId]);
+  const {
+    data: gradesRes,
+    isLoading: gradesLoading,
+    isError: gradesError,
+  } = useGetGradesQuery(undefined, {
+    skip: !(action === "create" || action === "update"),
+  });
 
-  const teacherName = useMemo(() => {
-    const names =
-      (selectedClass?.teacherIds || []).map((t) => t?.name).filter(Boolean) || [];
-    return names.join(", ") || "—";
-  }, [selectedClass]);
+  const {
+    data: teachersRes,
+    isLoading: teachersLoading,
+    isError: teachersError,
+  } = useGetTeachersQuery(
+    { status: "approved" },
+    { skip: !(action === "create" || action === "update") }
+  );
 
-  const gradeName = useMemo(() => {
-    if (selectedClass?.gradeNo) return `Grade ${selectedClass.gradeNo}`;
-    if (selectedClass?.grade) return `Grade ${selectedClass.grade}`;
-    if (selectedClass?.gradeId?.grade) return `Grade ${selectedClass.gradeId.grade}`;
-    return "—";
-  }, [selectedClass]);
-
-  const subjectName = useMemo(() => {
-    return (
-      selectedClass?.subjectName ||
-      selectedClass?.subjectId?.subject ||
-      selectedClass?.streamSubjectId?.subject ||
-      selectedClass?.subject ||
-      "—"
-    );
-  }, [selectedClass]);
-
-  const batchNumber = useMemo(() => {
-    return selectedClass?.batchNumber || "—";
-  }, [selectedClass]);
-
-  useEffect(() => {
-    if (action === "create") {
-      setForm({ classId: "", zoomLinks: [""], date: "", time: "" });
-    }
-  }, [action]);
-
-  useEffect(() => {
-    if (action !== "update") return;
-    const live = liveByIdRes?.live;
-    if (!live) return;
-
-    setForm({
-      classId: String(live?.classId?._id || live?.classId || ""),
-      zoomLinks: getNormalizedZoomLinks(live),
-      date: toDateInput(live?.scheduledAt),
-      time: toTimeInput(live?.scheduledAt),
-    });
-  }, [action, liveByIdRes]);
+  const allGrades = gradesRes?.grades || [];
+  const teachers = teachersRes?.teachers || [];
 
   const rows = useMemo(() => {
-    return lives.map((l) => {
-      const dt = l?.scheduledAt ? new Date(l.scheduledAt) : null;
-      const date =
-        dt && !Number.isNaN(dt.getTime()) ? dt.toISOString().slice(0, 10) : "—";
-      const time =
-        dt && !Number.isNaN(dt.getTime()) ? dt.toTimeString().slice(0, 5) : "—";
+    const list = data?.classes || [];
 
-      const details = l?.classDetails || {};
-      const zoomLinks = getNormalizedZoomLinks(l);
+    return list.map((c) => {
+      const teacherNames =
+        c?.teacherIds?.length > 0
+          ? c.teacherIds.map((t) => t?.name).filter(Boolean).join(", ")
+          : "No Teacher";
+
+      const created = c?.createdAt ? new Date(c.createdAt) : null;
+      const createdDate = created ? created.toISOString().slice(0, 10) : "-";
+      const createdTime = created ? created.toTimeString().slice(0, 5) : "-";
+
+      const gradeDisplay =
+        c?.gradeLabel ||
+        (c?.gradeId?.flowType === "al"
+          ? "A/L"
+          : c?.gradeId?.grade
+          ? `Grade ${c.gradeId.grade}`
+          : "—");
+
+      const subjectDisplay =
+        c?.gradeId?.flowType === "al"
+          ? [c?.streamName, c?.subjectName].filter(Boolean).join(" / ") || "—"
+          : c?.subjectName || "—";
 
       return {
-        _id: l._id,
-        classId: l?.classId?._id || l?.classId || "",
-        className: details?.className || "—",
-        batchNumber: details?.batchNumber || "—",
-        teacherName: (details?.teachers || []).join(", ") || "—",
-        grade: details?.grade ? `Grade ${details.grade}` : "—",
-        subject: details?.subject || "—",
-        zoomLinks,
-        date,
-        time,
+        _id: c._id,
+        className: c.className || "—",
+        batchNumber: c.batchNumber || "—",
+        grade: gradeDisplay,
+        subject: subjectDisplay,
+        teacherName: teacherNames,
+        createdDate,
+        createdTime,
+        imageUrl: c.imageUrl || "",
       };
     });
-  }, [lives]);
+  }, [data]);
 
   const totalRows = rows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
 
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
+    if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
   const paginatedRows = useMemo(() => {
@@ -243,62 +187,202 @@ const LivePage = () => {
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
   const goToLastPage = () => setCurrentPage(totalPages);
 
-  const openCreate = () => navigate("/lms/live?action=create");
-  const openUpdate = (id, classId) =>
-    navigate(`/lms/live?action=update&liveId=${id}&classId=${classId}`);
+  const [uploading, setUploading] = useState(false);
 
-  const onDelete = async (liveId, classId) => {
-    if (!window.confirm("Delete this live session?")) return;
+  const uploadClassImage = async (file) => {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const BACKEND_URL =
+      import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
+    const token = localStorage.getItem("token") || "";
+
+    const res = await fetch(`${BACKEND_URL}/api/upload/class-image`, {
+      method: "POST",
+      headers: { Authorization: token ? `Bearer ${token}` : "" },
+      body: formData,
+      credentials: "include",
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.message || "Upload failed");
+    return json;
+  };
+
+  const emptyForm = {
+    className: "",
+    batchNumber: "",
+    gradeId: "",
+    subjectId: "",
+    streamId: "",
+    streamSubjectId: "",
+    teacherIds: [],
+    imageUrl: "",
+    imagePublicId: "",
+  };
+
+  const [form, setForm] = useState(emptyForm);
+
+  const selectedGrade = useMemo(() => {
+    return allGrades.find((g) => String(g?._id) === String(form.gradeId));
+  }, [allGrades, form.gradeId]);
+
+  const isAL = isALGrade(selectedGrade);
+
+  const subjects = useMemo(() => {
+    return Array.isArray(selectedGrade?.subjects) ? selectedGrade.subjects : [];
+  }, [selectedGrade]);
+
+  const streams = useMemo(() => {
+    return Array.isArray(selectedGrade?.streams) ? selectedGrade.streams : [];
+  }, [selectedGrade]);
+
+  const selectedStream = useMemo(() => {
+    return streams.find((s) => String(s?._id) === String(form.streamId));
+  }, [streams, form.streamId]);
+
+  const streamSubjects = useMemo(() => {
+    return Array.isArray(selectedStream?.subjects) ? selectedStream.subjects : [];
+  }, [selectedStream]);
+
+  useEffect(() => {
+    if (!form.gradeId) return;
+
+    if (!isAL) {
+      const validSubjectIds = new Set(subjects.map((s) => String(s?._id)));
+
+      if (form.subjectId && !validSubjectIds.has(String(form.subjectId))) {
+        setForm((p) => ({ ...p, subjectId: "" }));
+      }
+
+      if (form.streamId || form.streamSubjectId) {
+        setForm((p) => ({
+          ...p,
+          streamId: "",
+          streamSubjectId: "",
+        }));
+      }
+
+      return;
+    }
+
+    const validStreamIds = new Set(streams.map((s) => String(s?._id)));
+
+    if (form.streamId && !validStreamIds.has(String(form.streamId))) {
+      setForm((p) => ({
+        ...p,
+        streamId: "",
+        streamSubjectId: "",
+      }));
+    }
+
+    if (form.subjectId) {
+      setForm((p) => ({ ...p, subjectId: "" }));
+    }
+  }, [form.gradeId, isAL, subjects, streams]);
+
+  useEffect(() => {
+    if (!isAL) return;
+
+    const validStreamSubjectIds = new Set(
+      streamSubjects.map((s) => String(s?._id))
+    );
+
+    if (
+      form.streamSubjectId &&
+      !validStreamSubjectIds.has(String(form.streamSubjectId))
+    ) {
+      setForm((p) => ({ ...p, streamSubjectId: "" }));
+    }
+  }, [isAL, streamSubjects, form.streamSubjectId]);
+
+  useEffect(() => {
+    if (action === "create") {
+      setForm(emptyForm);
+    }
+  }, [action]);
+
+  useEffect(() => {
+    if (action !== "update") return;
+    const c = classRes?.class;
+    if (!c) return;
+
+    setForm({
+      className: c?.className || "",
+      batchNumber: c?.batchNumber || "",
+      gradeId: c?.gradeId?._id || c?.gradeId || "",
+      subjectId: c?.subjectId || "",
+      streamId: c?.streamId || "",
+      streamSubjectId: c?.streamSubjectId || "",
+      teacherIds: (c?.teacherIds || []).map((t) => t?._id).filter(Boolean),
+      imageUrl: c?.imageUrl || "",
+      imagePublicId: c?.imagePublicId || "",
+    });
+  }, [action, classRes]);
+
+  const onDelete = async (id) => {
+    if (!window.confirm("Delete this class?")) return;
     try {
-      await deleteLive({ classId, liveId }).unwrap();
+      await deleteClass(id).unwrap();
     } catch (e) {
       alert(e?.data?.message || "Delete failed");
     }
   };
 
-  const handleZoomLinkChange = (index, value) => {
-    setForm((prev) => {
-      const next = [...prev.zoomLinks];
-      next[index] = value;
-      return { ...prev, zoomLinks: next };
-    });
-  };
-
-  const addZoomLinkField = () => {
-    setForm((prev) => ({
-      ...prev,
-      zoomLinks: [...prev.zoomLinks, ""],
-    }));
-  };
-
-  const removeZoomLinkField = (index) => {
-    setForm((prev) => {
-      const next = prev.zoomLinks.filter((_, i) => i !== index);
-      return {
-        ...prev,
-        zoomLinks: next.length ? next : [""],
-      };
-    });
-  };
-
-  const cleanedZoomLinks = useMemo(() => {
-    return (form.zoomLinks || []).map((x) => String(x || "").trim()).filter(Boolean);
-  }, [form.zoomLinks]);
-
-  const submitCreate = async () => {
-    if (!form.classId || !form.date || !form.time || cleanedZoomLinks.length === 0) {
-      alert("class, at least one zoom link, date, time are required");
-      return;
+  const validateForm = () => {
+    if (!form.className || !form.gradeId) {
+      alert("className and grade are required");
+      return false;
     }
 
-    try {
-      await createLive({
-        classId: form.classId,
-        title: `${selectedClass?.className || "Live"}`,
-        scheduledAt: buildScheduledAt(form.date, form.time),
-        zoomLinks: cleanedZoomLinks,
-      }).unwrap();
+    if (!String(form.batchNumber || "").trim()) {
+      alert("batchNumber is required");
+      return false;
+    }
 
+    if (isAL) {
+      if (!form.streamId || !form.streamSubjectId) {
+        alert("For A/L classes, stream and subject are required");
+        return false;
+      }
+    } else {
+      if (!form.subjectId) {
+        alert("For other grades, subject is required");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const buildPayload = () => {
+    const payload = {
+      className: form.className,
+      batchNumber: form.batchNumber,
+      gradeId: form.gradeId,
+      teacherIds: form.teacherIds || [],
+      imageUrl: form.imageUrl,
+      imagePublicId: form.imagePublicId,
+      subjectId: null,
+      streamId: null,
+      streamSubjectId: null,
+    };
+
+    if (isAL) {
+      payload.streamId = form.streamId;
+      payload.streamSubjectId = form.streamSubjectId;
+    } else {
+      payload.subjectId = form.subjectId;
+    }
+
+    return payload;
+  };
+
+  const submitCreate = async () => {
+    if (!validateForm()) return;
+
+    try {
+      await createClass(buildPayload()).unwrap();
       goList();
       setCurrentPage(1);
     } catch (e) {
@@ -307,49 +391,118 @@ const LivePage = () => {
   };
 
   const submitUpdate = async () => {
-    if (!liveId || !classIdFromQuery) return;
-
-    if (!form.classId || !form.date || !form.time || cleanedZoomLinks.length === 0) {
-      alert("class, at least one zoom link, date, time are required");
-      return;
-    }
+    if (!classId) return;
+    if (!validateForm()) return;
 
     try {
-      await updateLive({
-        classId: classIdFromQuery,
-        liveId,
-        body: {
-          title: `${selectedClass?.className || "Live"}`,
-          scheduledAt: buildScheduledAt(form.date, form.time),
-          zoomLinks: cleanedZoomLinks,
-        },
+      await updateClass({
+        classId,
+        body: buildPayload(),
       }).unwrap();
-
       goList();
     } catch (e) {
       alert(e?.data?.message || "Update failed");
     }
   };
 
+  const ImageUploader = ({ inputId }) => {
+    const onPickFile = async (file) => {
+      if (!file) return;
+      if (!file.type?.startsWith("image/")) {
+        alert("Only image files allowed");
+        return;
+      }
+
+      try {
+        setUploading(true);
+        const up = await uploadClassImage(file);
+
+        setForm((p) => ({
+          ...p,
+          imageUrl: up.url || "",
+          imagePublicId: up.publicId || "",
+        }));
+      } catch (err) {
+        alert(err?.message || "Upload failed");
+      } finally {
+        setUploading(false);
+      }
+    };
+
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Class Image
+        </label>
+
+        <div
+          className="mt-2 w-full cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-4 text-center transition hover:border-blue-400"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files?.[0];
+            onPickFile(file);
+          }}
+          onClick={() => document.getElementById(inputId)?.click()}
+        >
+          <div className="text-sm font-medium text-gray-700">
+            {uploading ? "Uploading..." : "Drop image here or click to upload"}
+          </div>
+
+          {form.imageUrl ? (
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <img
+                src={form.imageUrl}
+                alt="preview"
+                className="h-16 w-16 rounded-lg border object-cover"
+              />
+              <div className="text-left">
+                <div className="text-[11px] font-medium text-gray-700">
+                  Uploaded
+                </div>
+                <div className="max-w-[320px] break-all text-[10px] text-gray-500">
+                  {form.imageUrl}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            onPickFile(file);
+            e.target.value = "";
+          }}
+        />
+      </div>
+    );
+  };
+
   return (
-    <div className="flex w-full justify-center">
+    <div className="flex w-full justify-center ">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-              Live Session Management
+              Class Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage live classes, meeting links, schedules, and class batches.
+              Manage classes, subjects, teachers, batch number, and class images.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
               onClick={openCreate}
             >
-              + Add Live
+              + Add Class
             </button>
 
             <button
@@ -375,165 +528,106 @@ const LivePage = () => {
           </div>
         </div>
 
-        {action === "create" && (
-          <ModalShell title="Create Live Session" onClose={goList}>
-            {classLoading ? (
+        {action === "view" && (
+          <ModalShell title="View Class" onClose={goList}>
+            {!classId ? (
+              <div className="text-sm text-red-600">Missing classId</div>
+            ) : classLoading ? (
               <div className="text-sm text-gray-500">Loading...</div>
             ) : classError ? (
-              <div className="text-sm text-red-600">Failed to load classes</div>
+              <div className="text-sm text-red-600">Failed to load class</div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 text-sm">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <div className="text-sm font-medium text-gray-700">
                     Class Name
-                  </label>
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.classId}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, classId: e.target.value }))
-                    }
-                  >
-                    <option value="">Select Class</option>
-                    {classes.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Batch Number
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={batchNumber}
-                      disabled
-                    />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Teacher Name
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={teacherName}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Grade
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={gradeName}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Subject
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={subjectName}
-                      disabled
-                    />
+                  <div className="mt-1 text-sm text-gray-900">
+                    {classRes?.class?.className || "—"}
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Zoom Links
-                    </label>
-
-                    <button
-                      type="button"
-                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
-                      onClick={addZoomLinkField}
-                    >
-                      + Add Link
-                    </button>
+                <div>
+                  <div className="text-sm font-medium text-gray-700">
+                    Batch Number
                   </div>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {classRes?.class?.batchNumber || "—"}
+                  </div>
+                </div>
 
-                  {form.zoomLinks.map((link, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <input
-                        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                        value={link}
-                        onChange={(e) =>
-                          handleZoomLinkChange(index, e.target.value)
-                        }
-                        placeholder={`Enter zoom link ${index + 1}`}
-                      />
+                <div>
+                  <div className="text-sm font-medium text-gray-700">Grade</div>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {classRes?.class?.gradeLabel ||
+                      (classRes?.class?.gradeId?.flowType === "al"
+                        ? "A/L"
+                        : classRes?.class?.gradeId?.grade
+                        ? `Grade ${classRes.class.gradeId.grade}`
+                        : "—")}
+                  </div>
+                </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeZoomLinkField(index)}
-                        disabled={form.zoomLinks.length === 1}
-                        className="inline-flex h-10 min-w-[42px] items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Remove"
-                      >
-                        ×
-                      </button>
+                {classRes?.class?.gradeId?.flowType === "al" && (
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">Stream</div>
+                    <div className="mt-1 text-sm text-gray-900">
+                      {classRes?.class?.streamName || "—"}
                     </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.date}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, date: e.target.value }))
-                      }
-                    />
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Time
-                    </label>
-                    <input
-                      type="time"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.time}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, time: e.target.value }))
-                      }
-                    />
+                <div>
+                  <div className="text-sm font-medium text-gray-700">
+                    Subject
+                  </div>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {classRes?.class?.subjectName || "—"}
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                    onClick={goList}
-                  >
-                    Cancel
-                  </button>
+                <div>
+                  <div className="text-sm font-medium text-gray-700">
+                    Teachers
+                  </div>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {(classRes?.class?.teacherIds || [])
+                      .map((t) => t?.name)
+                      .filter(Boolean)
+                      .join(", ") || "No Teacher"}
+                  </div>
+                </div>
 
+                <div>
+                  <div className="text-sm font-medium text-gray-700">Image</div>
+                  {classRes?.class?.imageUrl ? (
+                    <div className="mt-2 flex items-center gap-3">
+                      <img
+                        src={classRes.class.imageUrl}
+                        alt="class"
+                        className="h-16 w-16 rounded-lg border object-cover"
+                      />
+                      <a
+                        href={classRes.class.imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-[11px] text-blue-600 underline"
+                      >
+                        {classRes.class.imageUrl}
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-sm text-gray-400">No image</div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                    onClick={submitCreate}
-                    disabled={creating}
+                    onClick={() => openUpdate(classId)}
                   >
-                    {creating ? "Creating..." : "Create"}
+                    Update
                   </button>
                 </div>
               </div>
@@ -541,153 +635,189 @@ const LivePage = () => {
           </ModalShell>
         )}
 
-        {action === "update" && (
-          <ModalShell title="Update Live Session" onClose={goList}>
-            {!liveId || !classIdFromQuery ? (
-              <div className="text-sm text-red-600">Missing liveId or classId</div>
-            ) : liveByIdLoading || classLoading ? (
+        {(action === "create" || action === "update") && (
+          <ModalShell
+            title={action === "create" ? "Create Class" : "Update Class"}
+            onClose={goList}
+          >
+            {gradesLoading || teachersLoading || (action === "update" && classLoading) ? (
               <div className="text-sm text-gray-500">Loading...</div>
-            ) : liveByIdError ? (
-              <div className="text-sm text-red-600">Failed to load live</div>
-            ) : classError ? (
-              <div className="text-sm text-red-600">Failed to load classes</div>
+            ) : gradesError ? (
+              <div className="text-sm text-red-600">Failed to load grades</div>
+            ) : teachersError ? (
+              <div className="text-sm text-red-600">Failed to load teachers</div>
+            ) : action === "update" && classError ? (
+              <div className="text-sm text-red-600">Failed to load class</div>
             ) : (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Class Name
                   </label>
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                    value={form.classId}
-                    disabled
+                  <input
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.className}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, classId: e.target.value }))
+                      setForm((p) => ({ ...p, className: e.target.value }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Batch Number
+                  </label>
+                  <input
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.batchNumber}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, batchNumber: e.target.value }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Grade
+                  </label>
+                  <select
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.gradeId}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        gradeId: e.target.value,
+                        subjectId: "",
+                        streamId: "",
+                        streamSubjectId: "",
+                      }))
                     }
                   >
-                    <option value="">Select Class</option>
-                    {classes.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
+                    <option value="">Select Grade</option>
+                    {allGrades.map((g) => (
+                      <option key={g._id} value={g._id}>
+                        {g?.flowType === "al"
+                          ? g?.title || "A/L"
+                          : g?.grade
+                          ? `Grade ${g.grade}`
+                          : g?.title || "—"}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Batch Number
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={batchNumber}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Teacher Name
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={teacherName}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Grade
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={gradeName}
-                      disabled
-                    />
-                  </div>
-
+                {!isAL ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Subject
                     </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={subjectName}
-                      disabled
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Zoom Links
-                    </label>
-
-                    <button
-                      type="button"
-                      className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
-                      onClick={addZoomLinkField}
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                      value={form.subjectId}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, subjectId: e.target.value }))
+                      }
+                      disabled={!form.gradeId}
                     >
-                      + Add Link
-                    </button>
+                      <option value="">
+                        {form.gradeId ? "Select Subject" : "Select grade first"}
+                      </option>
+                      {subjects.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.subject}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-
-                  {form.zoomLinks.map((link, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <input
-                        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                        value={link}
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Stream
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamId}
                         onChange={(e) =>
-                          handleZoomLinkChange(index, e.target.value)
+                          setForm((p) => ({
+                            ...p,
+                            streamId: e.target.value,
+                            streamSubjectId: "",
+                          }))
                         }
-                        placeholder={`Enter zoom link ${index + 1}`}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => removeZoomLinkField(index)}
-                        disabled={form.zoomLinks.length === 1}
-                        className="inline-flex h-10 min-w-[42px] items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Remove"
+                        disabled={!form.gradeId}
                       >
-                        ×
-                      </button>
+                        <option value="">
+                          {form.gradeId ? "Select Stream" : "Select grade first"}
+                        </option>
+                        {streams.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.stream}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  ))}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Subject
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamSubjectId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamSubjectId: e.target.value,
+                          }))
+                        }
+                        disabled={!form.streamId}
+                      >
+                        <option value="">
+                          {form.streamId
+                            ? "Select Subject"
+                            : "Select stream first"}
+                        </option>
+                        {streamSubjects.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.subject}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Teachers
+                  </label>
+                  <select
+                    multiple
+                    className="mt-2 min-h-[120px] w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.teacherIds}
+                    onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions).map(
+                        (o) => o.value
+                      );
+                      setForm((p) => ({ ...p, teacherIds: values }));
+                    }}
+                  >
+                    {teachers.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.date}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, date: e.target.value }))
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Time
-                    </label>
-                    <input
-                      type="time"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.time}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, time: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
+                <ImageUploader
+                  inputId={
+                    action === "create"
+                      ? "class-image-input-create"
+                      : "class-image-input-update"
+                  }
+                />
 
                 <div className="flex justify-end gap-2 pt-1">
                   <button
@@ -701,10 +831,18 @@ const LivePage = () => {
                   <button
                     type="button"
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                    onClick={submitUpdate}
-                    disabled={updating}
+                    onClick={action === "create" ? submitCreate : submitUpdate}
+                    disabled={isCreating || isUpdating || uploading}
                   >
-                    {updating ? "Updating..." : "Update"}
+                    {uploading
+                      ? "Uploading..."
+                      : action === "create"
+                      ? isCreating
+                        ? "Creating..."
+                        : "Create"
+                      : isUpdating
+                      ? "Updating..."
+                      : "Update"}
                   </button>
                 </div>
               </div>
@@ -714,29 +852,29 @@ const LivePage = () => {
 
         <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1360px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1300px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
                     Class Name
                   </th>
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Batch Number
                   </th>
-                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
-                    Teacher Name
-                  </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
                   </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
                   <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">
-                    Zoom Links
+                    Teacher Name
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Date
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                    Image
+                  </th>
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                    Created Date
                   </th>
                   <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
                     Time
@@ -748,22 +886,22 @@ const LivePage = () => {
               </thead>
 
               <tbody className="bg-white text-sm text-gray-700">
-                {liveLoading ? (
+                {isLoading ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
-                ) : liveError ? (
+                ) : isError ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-8 text-center text-red-600">
-                      Failed to load lives
+                      Failed to load classes
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                      No live records found
+                      No class records found
                     </td>
                   </tr>
                 ) : (
@@ -780,10 +918,6 @@ const LivePage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.teacherName}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.grade}</div>
                       </td>
 
@@ -792,38 +926,54 @@ const LivePage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        {r.zoomLinks?.length ? (
-                          <div className="flex flex-col gap-1">
-                            {r.zoomLinks.map((link, idx) => (
-                              <a
-                                key={`${r._id}-${idx}`}
-                                href={link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="truncate font-medium text-blue-600 hover:underline"
-                              >
-                                Open Link {idx + 1}
-                              </a>
-                            ))}
+                        <div className="truncate">{r.teacherName}</div>
+                      </td>
+
+                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
+                        {r.imageUrl ? (
+                          <div className="flex items-center">
+                            <img
+                              src={r.imageUrl}
+                              alt="class"
+                              className="h-10 w-10 rounded-lg border object-cover"
+                            />
                           </div>
                         ) : (
-                          <span className="text-gray-400">—</span>
+                          <span className="text-xs text-gray-400">No image</span>
                         )}
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.date}</div>
+                        <div className="truncate">{r.createdDate}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.time}</div>
+                        <div className="truncate">{r.createdTime}</div>
                       </td>
 
                       <td className="border-b border-gray-200 px-4 py-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
                           <IconButton
-                            title="Edit"
-                            onClick={() => openUpdate(r._id, r.classId)}
+                            title="View"
+                            onClick={() => openView(r._id)}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </IconButton>
+
+                          <IconButton
+                            title="Update"
+                            onClick={() => openUpdate(r._id)}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -841,8 +991,8 @@ const LivePage = () => {
 
                           <IconButton
                             title="Delete"
-                            onClick={() => onDelete(r._id, r.classId)}
-                            disabled={deleting}
+                            onClick={() => onDelete(r._id)}
+                            disabled={isDeleting}
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -922,4 +1072,4 @@ const LivePage = () => {
   );
 };
 
-export default LivePage;
+export default ClassPage;

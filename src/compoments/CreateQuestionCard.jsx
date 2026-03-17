@@ -1,4 +1,3 @@
-// src/pages/CreatePaperQuestions.page.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -27,7 +26,7 @@ const Dropzone = ({ onFile }) => {
       }}
       className={[
         "w-full border border-dashed px-4 py-4 text-sm transition",
-        drag ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-[#F8FAFC]",
+        drag ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white",
       ].join(" ")}
     >
       <div className="text-sm font-medium text-gray-800">Drag and drop image here</div>
@@ -233,7 +232,7 @@ export default function CreatePaperQuestionsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F8FAFC] px-3 py-6">
+      <div className="flex min-h-screen w-full items-center justify-center px-3 py-6">
         <div className="w-full max-w-xl border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
           Loading...
         </div>
@@ -243,7 +242,7 @@ export default function CreatePaperQuestionsPage() {
 
   if (!paper) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#F8FAFC] px-3 py-6">
+      <div className="flex min-h-screen w-full items-center justify-center px-3 py-6">
         <div className="w-full max-w-xl border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
           Paper not found
         </div>
@@ -257,7 +256,6 @@ export default function CreatePaperQuestionsPage() {
     <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="mx-auto w-full max-w-5xl">
-          {/* Header */}
           <div className="border border-gray-200 bg-white p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -307,7 +305,6 @@ export default function CreatePaperQuestionsPage() {
             </div>
           </div>
 
-          {/* Form */}
           <div className="mt-5 border border-gray-200 bg-white p-5 sm:p-6">
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-base font-medium text-gray-900">
@@ -319,7 +316,6 @@ export default function CreatePaperQuestionsPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {/* Question */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700">
                   Question
@@ -335,7 +331,6 @@ export default function CreatePaperQuestionsPage() {
                 />
               </div>
 
-              {/* Lesson name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Lesson Name
@@ -350,7 +345,6 @@ export default function CreatePaperQuestionsPage() {
                 />
               </div>
 
-              {/* Explanation video */}
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Explanation Video URL
@@ -368,7 +362,6 @@ export default function CreatePaperQuestionsPage() {
                 />
               </div>
 
-              {/* Image upload */}
               <div className="md:col-span-2">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <label className="block text-sm font-medium text-gray-700">
@@ -404,7 +397,6 @@ export default function CreatePaperQuestionsPage() {
                 )}
               </div>
 
-              {/* Answers */}
               <div className="md:col-span-2">
                 <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <label className="block text-sm font-medium text-gray-700">
@@ -484,7 +476,6 @@ export default function CreatePaperQuestionsPage() {
                 </div>
               </div>
 
-              {/* Explanation Notes */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700">
                   Explanation Notes

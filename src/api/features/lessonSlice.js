@@ -1,22 +1,20 @@
-// src/api/features/lessonSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
-  selectedClassId: "",
+  search: "",
 };
 
 const lessonSlice = createSlice({
   name: "lessonUi",
   initialState,
   reducers: {
-    setSelectedClassId: (state, action) => {
-      state.selectedClassId = action.payload || "";
+    setLessonSearch: (state, action) => {
+      state.search = action.payload || "";
     },
-    resetLessonUi: (state) => {
-      state.selectedClassId = "";
-    },
+    resetLessonUi: () => initialState,
   },
 });
 
-export const { setSelectedClassId, resetLessonUi } = lessonSlice.actions;
+export const { setLessonSearch, resetLessonUi } = lessonSlice.actions;
 export default lessonSlice.reducer;
+

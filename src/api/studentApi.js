@@ -13,13 +13,14 @@ export const studentApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ["Students"],
+  tagTypes: ["Students", "StudentOptions", "PendingEnrollRequests"],
   endpoints: (builder) => ({
     getStudentOptions: builder.query({
       query: () => ({
         url: "/options",
         method: "GET",
       }),
+      providesTags: ["StudentOptions"],
     }),
 
     getStudents: builder.query({
@@ -27,11 +28,12 @@ export const studentApi = createApi({
         const search = new URLSearchParams();
 
         if (params.status) search.set("status", params.status);
-        if (params.email) search.set("email", params.email);
+        if (params.phonenumber) search.set("phonenumber", params.phonenumber);
         if (params.district) search.set("district", params.district);
         if (params.level) search.set("level", params.level);
         if (params.grade) search.set("grade", params.grade);
         if (params.classId) search.set("classId", params.classId);
+        if (params.batchNumber) search.set("batchNumber", params.batchNumber);
         if (params.page) search.set("page", String(params.page));
         if (params.limit) search.set("limit", String(params.limit));
 
@@ -43,6 +45,33 @@ export const studentApi = createApi({
         };
       },
       providesTags: ["Students"],
+    }),
+
+    grantStudentAccess: builder.mutation({
+      query: ({ studentId, classId }) => ({
+        url: `/${studentId}/access-grant`,
+        method: "PATCH",
+        body: { classId },
+      }),
+      invalidatesTags: ["Students", "PendingEnrollRequests"],
+    }),
+
+    removeStudentAccess: builder.mutation({
+      query: ({ studentId, classId }) => ({
+        url: `/${studentId}/access-remove`,
+        method: "PATCH",
+        body: { classId },
+      }),
+      invalidatesTags: ["Students"],
+    }),
+
+    bulkRemoveClassAccess: builder.mutation({
+      query: ({ classId }) => ({
+        url: "/access-remove-all",
+        method: "PATCH",
+        body: { classId },
+      }),
+      invalidatesTags: ["Students"],
     }),
 
     banStudent: builder.mutation({
@@ -66,6 +95,9 @@ export const studentApi = createApi({
 export const {
   useGetStudentOptionsQuery,
   useGetStudentsQuery,
+  useGrantStudentAccessMutation,
+  useRemoveStudentAccessMutation,
+  useBulkRemoveClassAccessMutation,
   useBanStudentMutation,
   useUnbanStudentMutation,
 } = studentApi;

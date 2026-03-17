@@ -209,12 +209,12 @@ const LMSPage = () => {
   const rows = useMemo(() => {
     return lessons.map((l) => {
       const className = l?.classDetails?.className || "—";
-      const batchNumber = l?.classDetails?.batchNumber || "—";
       const grade = l?.classDetails?.grade
         ? `Grade ${l.classDetails.grade}`
         : l?.classDetails?.gradeLabel || "—";
       const stream = l?.classDetails?.stream || "—";
       const subject = l?.classDetails?.subject || "—";
+      const batchNumber = l?.classDetails?.batchNumber || "—";
 
       return {
         _id: l._id,
@@ -260,28 +260,42 @@ const LMSPage = () => {
 
   const validate = () => {
     if (!form.classId) {
-      alert("Please select a class");
+      alert("Class is required");
       return false;
     }
-    if (!form.title || !form.date || !form.time) {
-      alert("Lesson name, date, time are required");
+    if (!form.title.trim()) {
+      alert("Lesson title is required");
+      return false;
+    }
+    if (!form.youtubeUrl.trim()) {
+      alert("YouTube URL is required");
+      return false;
+    }
+    if (!form.date.trim()) {
+      alert("Date is required");
+      return false;
+    }
+    if (!form.time.trim()) {
+      alert("Time is required");
       return false;
     }
     return true;
   };
 
+  const buildPayload = () => ({
+    classId: form.classId,
+    youtubeUrl: form.youtubeUrl.trim(),
+    title: form.title.trim(),
+    description: form.description.trim(),
+    date: form.date,
+    time: form.time,
+  });
+
   const submitCreate = async () => {
     if (!validate()) return;
 
     try {
-      await createLesson({
-        classId: form.classId,
-        title: form.title,
-        date: form.date,
-        time: form.time,
-        description: form.description || "",
-        youtubeUrl: form.youtubeUrl || "",
-      }).unwrap();
+      await createLesson(buildPayload()).unwrap();
       closeModal();
       setCurrentPage(1);
     } catch (e) {
@@ -296,14 +310,7 @@ const LMSPage = () => {
     try {
       await updateLessonById({
         lessonId: modal.lessonId,
-        body: {
-          classId: form.classId,
-          title: form.title,
-          date: form.date,
-          time: form.time,
-          description: form.description || "",
-          youtubeUrl: form.youtubeUrl || "",
-        },
+        body: buildPayload(),
       }).unwrap();
       closeModal();
     } catch (e) {
@@ -311,8 +318,9 @@ const LMSPage = () => {
     }
   };
 
-  const onDelete = async (lessonId) => {
+  const removeLesson = async (lessonId) => {
     if (!window.confirm("Delete this lesson?")) return;
+
     try {
       await deleteLessonById(lessonId).unwrap();
     } catch (e) {
@@ -320,23 +328,22 @@ const LMSPage = () => {
     }
   };
 
-  const formLoading = classesLoading || lessonsLoading;
-
   return (
-    <div className="flex w-full justify-center ">
+    <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-              Learning Management System
+              LMS Lesson Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage lesson schedules, links, class batches, and class details.
+              Manage lessons, YouTube links, dates, and times.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
               onClick={openCreate}
             >
@@ -368,10 +375,10 @@ const LMSPage = () => {
 
         {modal.open && (
           <ModalShell
-            title={modal.mode === "create" ? "Create Lesson" : "Edit Lesson"}
+            title={modal.mode === "create" ? "Create Lesson" : "Update Lesson"}
             onClose={closeModal}
           >
-            {formLoading ? (
+            {classesLoading ? (
               <div className="text-sm text-gray-500">Loading...</div>
             ) : classesError ? (
               <div className="text-sm text-red-600">Failed to load classes</div>
@@ -379,7 +386,7 @@ const LMSPage = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Class Name <span className="text-red-600">*</span>
+                    Class
                   </label>
                   <select
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
@@ -391,7 +398,7 @@ const LMSPage = () => {
                     <option value="">Select Class</option>
                     {classes.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
+                        {c.className}
                       </option>
                     ))}
                   </select>
@@ -445,7 +452,21 @@ const LMSPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    YouTube Link
+                    Lesson Title
+                  </label>
+                  <input
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, title: e.target.value }))
+                    }
+                    placeholder="Enter lesson title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    YouTube URL
                   </label>
                   <input
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
@@ -459,36 +480,23 @@ const LMSPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Lesson Name <span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, title: e.target.value }))
-                    }
-                    placeholder="Enter lesson name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
                     Description
                   </label>
                   <textarea
-                    className="mt-2 min-h-[90px] w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    rows={4}
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
                     value={form.description}
                     onChange={(e) =>
                       setForm((p) => ({ ...p, description: e.target.value }))
                     }
-                    placeholder="Enter description"
+                    placeholder="Enter lesson description"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      Date <span className="text-red-600">*</span>
+                      Date
                     </label>
                     <input
                       type="date"
@@ -502,7 +510,7 @@ const LMSPage = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      Time <span className="text-red-600">*</span>
+                      Time
                     </label>
                     <input
                       type="time"
@@ -524,43 +532,38 @@ const LMSPage = () => {
                     Cancel
                   </button>
 
-                  {modal.mode === "create" ? (
-                    <button
-                      type="button"
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                      onClick={submitCreate}
-                      disabled={isCreating}
-                    >
-                      {isCreating ? "Creating..." : "Create"}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                      onClick={submitUpdate}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? "Updating..." : "Update"}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                    onClick={modal.mode === "create" ? submitCreate : submitUpdate}
+                    disabled={isCreating || isUpdating}
+                  >
+                    {modal.mode === "create"
+                      ? isCreating
+                        ? "Creating..."
+                        : "Create"
+                      : isUpdating
+                      ? "Updating..."
+                      : "Update"}
+                  </button>
                 </div>
               </div>
             )}
           </ModalShell>
         )}
 
-        <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1420px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Class Name
+                    Class
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Batch Number
+                    Batch
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[9%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
@@ -569,22 +572,22 @@ const LMSPage = () => {
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    YouTube Link
-                  </th>
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[13%] border-b border-r border-gray-200 px-4 py-3">
                     Lesson Name
                   </th>
-                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                    YouTube URL
+                  </th>
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Description
                   </th>
-                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[5%] border-b border-r border-gray-200 px-4 py-3">
                     Date
                   </th>
-                  <th className="w-[6%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[5%] border-b border-r border-gray-200 px-4 py-3">
                     Time
                   </th>
-                  <th className="w-[8%] border-b border-gray-200 px-4 py-3 text-center">
+                  <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">
                     Operation
                   </th>
                 </tr>
@@ -606,14 +609,16 @@ const LMSPage = () => {
                 ) : totalRows === 0 ? (
                   <tr>
                     <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                      No lesson records found
+                      No lessons found
                     </td>
                   </tr>
                 ) : (
                   paginatedRows.map((r) => (
                     <tr key={r._id} className="hover:bg-gray-50/70">
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate font-medium text-gray-800">{r.className}</div>
+                        <div className="truncate font-medium text-gray-800">
+                          {r.className}
+                        </div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
@@ -633,6 +638,10 @@ const LMSPage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
+                        <div className="truncate">{r.lessonName}</div>
+                      </td>
+
+                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         {r.youtubeUrl ? (
                           <a
                             href={r.youtubeUrl}
@@ -648,11 +657,7 @@ const LMSPage = () => {
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.lessonName}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.description}</div>
+                        <div className="line-clamp-2">{r.description}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
@@ -665,7 +670,10 @@ const LMSPage = () => {
 
                       <td className="border-b border-gray-200 px-4 py-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
-                          <IconButton title="Edit" onClick={() => openEdit(r.raw)}>
+                          <IconButton
+                            title="Update"
+                            onClick={() => openEdit(r.raw)}
+                          >
                             <svg
                               viewBox="0 0 24 24"
                               className="h-4 w-4"
@@ -682,7 +690,7 @@ const LMSPage = () => {
 
                           <IconButton
                             title="Delete"
-                            onClick={() => onDelete(r._id)}
+                            onClick={() => removeLesson(r._id)}
                             disabled={isDeleting}
                           >
                             <svg
