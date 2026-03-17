@@ -21,7 +21,7 @@ const ModalShell = ({ title, onClose, children }) => {
         role="button"
         tabIndex={-1}
       />
-      <div className="relative w-[95vw] max-w-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+      <div className="relative w-[95vw] max-w-[760px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
           <div className="text-base font-semibold text-gray-800">{title}</div>
           <button
@@ -89,6 +89,7 @@ const RecordingPage = () => {
 
   const [form, setForm] = useState({
     classId: "",
+    batchNumber: "",
     grade: "",
     subject: "",
     teacherName: "",
@@ -117,7 +118,9 @@ const RecordingPage = () => {
   }, [classes, form.classId]);
 
   const autoInfo = useMemo(() => {
-    if (!selectedClass) return { grade: "", subject: "", teacherName: "" };
+    if (!selectedClass) {
+      return { batchNumber: "", grade: "", subject: "", teacherName: "" };
+    }
 
     const grade = selectedClass?.gradeNo
       ? `Grade ${selectedClass.gradeNo}`
@@ -140,22 +143,37 @@ const RecordingPage = () => {
         .filter(Boolean)
         .join(", ") || "No Teacher";
 
-    return { grade, subject, teacherName };
+    const batchNumber = selectedClass?.batchNumber || "";
+
+    return { batchNumber, grade, subject, teacherName };
   }, [selectedClass]);
 
   useEffect(() => {
     if (!form.classId) {
-      setForm((p) => ({ ...p, grade: "", subject: "", teacherName: "" }));
+      setForm((p) => ({
+        ...p,
+        batchNumber: "",
+        grade: "",
+        subject: "",
+        teacherName: "",
+      }));
       return;
     }
 
     setForm((p) => ({
       ...p,
+      batchNumber: autoInfo.batchNumber,
       grade: autoInfo.grade,
       subject: autoInfo.subject,
       teacherName: autoInfo.teacherName,
     }));
-  }, [form.classId, autoInfo.grade, autoInfo.subject, autoInfo.teacherName]);
+  }, [
+    form.classId,
+    autoInfo.batchNumber,
+    autoInfo.grade,
+    autoInfo.subject,
+    autoInfo.teacherName,
+  ]);
 
   useEffect(() => {
     if (!modal.open) return;
@@ -163,6 +181,7 @@ const RecordingPage = () => {
     if (modal.mode === "create") {
       setForm({
         classId: "",
+        batchNumber: "",
         grade: "",
         subject: "",
         teacherName: "",
@@ -189,6 +208,8 @@ const RecordingPage = () => {
         ? recording?.classId?._id
         : recording?.classId || "";
 
+    const batchNumber = recording?.classDetails?.batchNumber || "";
+
     const grade = recording?.classDetails?.grade
       ? `Grade ${recording.classDetails.grade}`
       : "";
@@ -200,6 +221,7 @@ const RecordingPage = () => {
 
     setForm({
       classId,
+      batchNumber,
       grade,
       subject,
       teacherName,
@@ -214,6 +236,7 @@ const RecordingPage = () => {
   const rows = useMemo(() => {
     return recordings.map((r) => {
       const className = r?.classDetails?.className || "—";
+      const batchNumber = r?.classDetails?.batchNumber || "—";
       const grade = r?.classDetails?.grade
         ? `Grade ${r.classDetails.grade}`
         : "—";
@@ -225,6 +248,7 @@ const RecordingPage = () => {
         _id: r._id,
         classId: typeof r?.classId === "object" ? r?.classId?._id : r?.classId,
         className,
+        batchNumber,
         grade,
         subject,
         teacher,
@@ -342,7 +366,7 @@ const RecordingPage = () => {
               Recording Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage class recording links, details, and schedules.
+              Manage class recording links, details, schedules, and batch flow.
             </p>
           </div>
 
@@ -404,13 +428,24 @@ const RecordingPage = () => {
                     <option value="">Select Class</option>
                     {classes.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.className}
+                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Batch Number
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+                      value={form.batchNumber}
+                      disabled
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Grade
@@ -553,11 +588,14 @@ const RecordingPage = () => {
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1300px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1400px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Class Name
+                  </th>
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                    Batch Number
                   </th>
                   <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
@@ -592,19 +630,19 @@ const RecordingPage = () => {
               <tbody className="bg-white text-sm text-gray-700">
                 {recordingsLoading ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : recordingsError ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-red-600">
+                    <td colSpan={11} className="px-6 py-8 text-center text-red-600">
                       Failed to load recordings
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                       No recording records found
                     </td>
                   </tr>
@@ -615,6 +653,10 @@ const RecordingPage = () => {
                         <div className="truncate font-medium text-gray-800">
                           {r.className}
                         </div>
+                      </td>
+
+                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
+                        <div className="truncate">{r.batchNumber}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">

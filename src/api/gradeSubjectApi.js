@@ -15,9 +15,6 @@ export const gradeSubjectApi = createApi({
   }),
   tagTypes: ["Grades", "Subjects", "Streams", "StreamSubjects"],
   endpoints: (builder) => ({
-    // -----------------------------
-    // GRADES
-    // -----------------------------
     getGrades: builder.query({
       query: () => "/grades",
       providesTags: (result) =>
@@ -46,9 +43,6 @@ export const gradeSubjectApi = createApi({
       invalidatesTags: [{ type: "Grades", id: "LIST" }],
     }),
 
-    // -----------------------------
-    // SUBJECTS (Grades 1-11)
-    // -----------------------------
     getSubjectsByGrade: builder.query({
       query: (gradeId) => `/subjects/${gradeId}`,
       providesTags: (result, err, gradeId) => [
@@ -88,9 +82,6 @@ export const gradeSubjectApi = createApi({
       ],
     }),
 
-    // -----------------------------
-    // A/L STREAMS (READ ONLY)
-    // -----------------------------
     getStreamsByGrade: builder.query({
       query: (gradeId) => `/streams/admin/${gradeId}`,
       providesTags: (result, err, gradeId) => [
@@ -98,9 +89,6 @@ export const gradeSubjectApi = createApi({
       ],
     }),
 
-    // -----------------------------
-    // A/L STREAM SUBJECTS
-    // -----------------------------
     getStreamSubjects: builder.query({
       query: ({ gradeId, streamId }) =>
         `/stream/subjects/${gradeId}/${streamId}`,

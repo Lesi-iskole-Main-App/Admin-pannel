@@ -23,7 +23,7 @@ const ModalShell = ({ title, onClose, children }) => {
         role="button"
         tabIndex={-1}
       />
-      <div className="relative w-[95vw] max-w-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+      <div className="relative w-[95vw] max-w-[760px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
           <div className="text-base font-semibold text-gray-800">{title}</div>
           <button
@@ -64,7 +64,7 @@ const ClassPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const action = searchParams.get("action"); // create | view | update | null
+  const action = searchParams.get("action");
   const classId = searchParams.get("classId");
 
   const goList = () =>
@@ -85,18 +85,13 @@ const ClassPage = () => {
       search: `?action=update&classId=${encodeURIComponent(id)}`,
     });
 
-  // ======= class list =======
   const { data, isLoading, isError } = useGetAllClassesQuery();
   const [deleteClass, { isLoading: isDeleting }] = useDeleteClassMutation();
-
-  // ======= create/update =======
   const [createClass, { isLoading: isCreating }] = useCreateClassMutation();
   const [updateClass, { isLoading: isUpdating }] = useUpdateClassMutation();
 
-  // ======= pagination =======
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ======= details =======
   const shouldLoadDetails =
     (action === "view" || action === "update") && !!classId;
 
@@ -108,7 +103,6 @@ const ClassPage = () => {
     skip: !shouldLoadDetails,
   });
 
-  // ======= grades =======
   const {
     data: gradesRes,
     isLoading: gradesLoading,
@@ -117,7 +111,6 @@ const ClassPage = () => {
     skip: !(action === "create" || action === "update"),
   });
 
-  // ======= teachers =======
   const {
     data: teachersRes,
     isLoading: teachersLoading,
@@ -159,6 +152,7 @@ const ClassPage = () => {
       return {
         _id: c._id,
         className: c.className || "—",
+        batchNumber: c.batchNumber || "—",
         grade: gradeDisplay,
         subject: subjectDisplay,
         teacherName: teacherNames,
@@ -192,7 +186,6 @@ const ClassPage = () => {
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
   const goToLastPage = () => setCurrentPage(totalPages);
 
-  // ======= upload state =======
   const [uploading, setUploading] = useState(false);
 
   const uploadClassImage = async (file) => {
@@ -212,12 +205,12 @@ const ClassPage = () => {
 
     const json = await res.json();
     if (!res.ok) throw new Error(json?.message || "Upload failed");
-    return json; // { url, publicId }
+    return json;
   };
 
-  // ======= form =======
   const emptyForm = {
     className: "",
+    batchNumber: "",
     gradeId: "",
     subjectId: "",
     streamId: "",
@@ -285,7 +278,7 @@ const ClassPage = () => {
     if (form.subjectId) {
       setForm((p) => ({ ...p, subjectId: "" }));
     }
-  }, [form.gradeId, isAL, subjects, streams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.gradeId, isAL, subjects, streams]);
 
   useEffect(() => {
     if (!isAL) return;
@@ -300,7 +293,7 @@ const ClassPage = () => {
     ) {
       setForm((p) => ({ ...p, streamSubjectId: "" }));
     }
-  }, [isAL, streamSubjects]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAL, streamSubjects, form.streamSubjectId]);
 
   useEffect(() => {
     if (action === "create") {
@@ -308,7 +301,6 @@ const ClassPage = () => {
     }
   }, [action]);
 
-  // ======= prefill when update opens =======
   useEffect(() => {
     if (action !== "update") return;
     const c = classRes?.class;
@@ -316,6 +308,7 @@ const ClassPage = () => {
 
     setForm({
       className: c?.className || "",
+      batchNumber: c?.batchNumber || "",
       gradeId: c?.gradeId?._id || c?.gradeId || "",
       subjectId: c?.subjectId || "",
       streamId: c?.streamId || "",
@@ -336,8 +329,8 @@ const ClassPage = () => {
   };
 
   const validateForm = () => {
-    if (!form.className || !form.gradeId) {
-      alert("className and grade are required");
+    if (!form.className || !form.batchNumber || !form.gradeId) {
+      alert("className, batchNumber and grade are required");
       return false;
     }
 
@@ -359,6 +352,7 @@ const ClassPage = () => {
   const buildPayload = () => {
     const payload = {
       className: form.className,
+      batchNumber: form.batchNumber,
       gradeId: form.gradeId,
       teacherIds: form.teacherIds || [],
       imageUrl: form.imageUrl,
@@ -492,7 +486,7 @@ const ClassPage = () => {
               Class Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage classes, subjects, teachers, and class images.
+              Manage classes, batch numbers, subjects, teachers, and class images.
             </p>
           </div>
 
@@ -528,7 +522,6 @@ const ClassPage = () => {
           </div>
         </div>
 
-        {/* VIEW MODAL */}
         {action === "view" && (
           <ModalShell title="View Class" onClose={goList}>
             {!classId ? (
@@ -540,11 +533,16 @@ const ClassPage = () => {
             ) : (
               <div className="space-y-4 text-sm">
                 <div>
-                  <div className="text-sm font-medium text-gray-700">
-                    Class Name
-                  </div>
+                  <div className="text-sm font-medium text-gray-700">Class Name</div>
                   <div className="mt-1 text-sm text-gray-900">
                     {classRes?.class?.className || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium text-gray-700">Batch Number</div>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {classRes?.class?.batchNumber || "—"}
                   </div>
                 </div>
 
@@ -570,18 +568,14 @@ const ClassPage = () => {
                 )}
 
                 <div>
-                  <div className="text-sm font-medium text-gray-700">
-                    Subject
-                  </div>
+                  <div className="text-sm font-medium text-gray-700">Subject</div>
                   <div className="mt-1 text-sm text-gray-900">
                     {classRes?.class?.subjectName || "—"}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-sm font-medium text-gray-700">
-                    Teachers
-                  </div>
+                  <div className="text-sm font-medium text-gray-700">Teachers</div>
                   <div className="mt-1 text-sm text-gray-900">
                     {(classRes?.class?.teacherIds || [])
                       .map((t) => t?.name)
@@ -627,7 +621,6 @@ const ClassPage = () => {
           </ModalShell>
         )}
 
-        {/* UPDATE MODAL */}
         {action === "update" && (
           <ModalShell title="Update Class" onClose={goList}>
             {!classId ? (
@@ -657,194 +650,15 @@ const ClassPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Grade
-                  </label>
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.gradeId}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        gradeId: e.target.value,
-                        subjectId: "",
-                        streamId: "",
-                        streamSubjectId: "",
-                      }))
-                    }
-                  >
-                    <option value="">Select Grade</option>
-                    {allGrades.map((g) => (
-                      <option key={g._id} value={g._id}>
-                        {g?.flowType === "al"
-                          ? g?.title || "A/L"
-                          : g?.grade
-                          ? `Grade ${g.grade}`
-                          : g?.title || "—"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {!isAL ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Subject
-                    </label>
-                    <select
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.subjectId}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, subjectId: e.target.value }))
-                      }
-                      disabled={!form.gradeId}
-                    >
-                      <option value="">
-                        {form.gradeId ? "Select Subject" : "Select grade first"}
-                      </option>
-                      {subjects.map((s) => (
-                        <option key={s._id} value={s._id}>
-                          {s.subject}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Stream
-                      </label>
-                      <select
-                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                        value={form.streamId}
-                        onChange={(e) =>
-                          setForm((p) => ({
-                            ...p,
-                            streamId: e.target.value,
-                            streamSubjectId: "",
-                          }))
-                        }
-                        disabled={!form.gradeId}
-                      >
-                        <option value="">
-                          {form.gradeId ? "Select Stream" : "Select grade first"}
-                        </option>
-                        {streams.map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.stream}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Subject
-                      </label>
-                      <select
-                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                        value={form.streamSubjectId}
-                        onChange={(e) =>
-                          setForm((p) => ({
-                            ...p,
-                            streamSubjectId: e.target.value,
-                          }))
-                        }
-                        disabled={!form.streamId}
-                      >
-                        <option value="">
-                          {form.streamId
-                            ? "Select Subject"
-                            : "Select stream first"}
-                        </option>
-                        {streamSubjects.map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.subject}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Teachers
-                  </label>
-                  <select
-                    multiple
-                    className="mt-2 min-h-[120px] w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.teacherIds}
-                    onChange={(e) => {
-                      const values = Array.from(e.target.selectedOptions).map(
-                        (o) => o.value
-                      );
-                      setForm((p) => ({ ...p, teacherIds: values }));
-                    }}
-                  >
-                    {teachers.map((t) => (
-                      <option key={t._id} value={t._id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="mt-1 text-[11px] text-gray-500">
-                    Optional — leave empty for no teacher. Hold Ctrl / Cmd to
-                    select multiple.
-                  </div>
-                </div>
-
-                <ImageUploader inputId="class-image-input-update" />
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                    onClick={goList}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                    onClick={submitUpdate}
-                    disabled={isUpdating || uploading}
-                  >
-                    {uploading
-                      ? "Uploading..."
-                      : isUpdating
-                      ? "Updating..."
-                      : "Update"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </ModalShell>
-        )}
-
-        {/* CREATE MODAL */}
-        {action === "create" && (
-          <ModalShell title="Create Class" onClose={goList}>
-            {gradesLoading || teachersLoading ? (
-              <div className="text-sm text-gray-500">Loading...</div>
-            ) : gradesError ? (
-              <div className="text-sm text-red-600">Failed to load grades</div>
-            ) : teachersError ? (
-              <div className="text-sm text-red-600">Failed to load teachers</div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Class Name
+                    Batch Number
                   </label>
                   <input
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.className}
+                    value={form.batchNumber}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, className: e.target.value }))
+                      setForm((p) => ({ ...p, batchNumber: e.target.value }))
                     }
-                    placeholder="Enter class name"
+                    placeholder="Enter batch number"
                   />
                 </div>
 
@@ -946,9 +760,7 @@ const ClassPage = () => {
                         disabled={!form.streamId}
                       >
                         <option value="">
-                          {form.streamId
-                            ? "Select Subject"
-                            : "Select stream first"}
+                          {form.streamId ? "Select Subject" : "Select stream first"}
                         </option>
                         {streamSubjects.map((s) => (
                           <option key={s._id} value={s._id}>
@@ -981,10 +793,202 @@ const ClassPage = () => {
                       </option>
                     ))}
                   </select>
-                  <div className="mt-1 text-[11px] text-gray-500">
-                    Optional — leave empty for no teacher. Hold Ctrl / Cmd to
-                    select multiple.
+                </div>
+
+                <ImageUploader inputId="class-image-input-update" />
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                    onClick={goList}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                    onClick={submitUpdate}
+                    disabled={isUpdating || uploading}
+                  >
+                    {uploading ? "Uploading..." : isUpdating ? "Updating..." : "Update"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </ModalShell>
+        )}
+
+        {action === "create" && (
+          <ModalShell title="Create Class" onClose={goList}>
+            {gradesLoading || teachersLoading ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : gradesError ? (
+              <div className="text-sm text-red-600">Failed to load grades</div>
+            ) : teachersError ? (
+              <div className="text-sm text-red-600">Failed to load teachers</div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Class Name
+                  </label>
+                  <input
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.className}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, className: e.target.value }))
+                    }
+                    placeholder="Enter class name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Batch Number
+                  </label>
+                  <input
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.batchNumber}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, batchNumber: e.target.value }))
+                    }
+                    placeholder="Enter batch number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Grade
+                  </label>
+                  <select
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.gradeId}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        gradeId: e.target.value,
+                        subjectId: "",
+                        streamId: "",
+                        streamSubjectId: "",
+                      }))
+                    }
+                  >
+                    <option value="">Select Grade</option>
+                    {allGrades.map((g) => (
+                      <option key={g._id} value={g._id}>
+                        {g?.flowType === "al"
+                          ? g?.title || "A/L"
+                          : g?.grade
+                          ? `Grade ${g.grade}`
+                          : g?.title || "—"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {!isAL ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Subject
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                      value={form.subjectId}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, subjectId: e.target.value }))
+                      }
+                      disabled={!form.gradeId}
+                    >
+                      <option value="">
+                        {form.gradeId ? "Select Subject" : "Select grade first"}
+                      </option>
+                      {subjects.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.subject}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Stream
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamId: e.target.value,
+                            streamSubjectId: "",
+                          }))
+                        }
+                        disabled={!form.gradeId}
+                      >
+                        <option value="">
+                          {form.gradeId ? "Select Stream" : "Select grade first"}
+                        </option>
+                        {streams.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.stream}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Subject
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                        value={form.streamSubjectId}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            streamSubjectId: e.target.value,
+                          }))
+                        }
+                        disabled={!form.streamId}
+                      >
+                        <option value="">
+                          {form.streamId ? "Select Subject" : "Select stream first"}
+                        </option>
+                        {streamSubjects.map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.subject}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Teachers
+                  </label>
+                  <select
+                    multiple
+                    className="mt-2 min-h-[120px] w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                    value={form.teacherIds}
+                    onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions).map(
+                        (o) => o.value
+                      );
+                      setForm((p) => ({ ...p, teacherIds: values }));
+                    }}
+                  >
+                    {teachers.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <ImageUploader inputId="class-image-input-create" />
@@ -1004,11 +1008,7 @@ const ClassPage = () => {
                     onClick={submitCreate}
                     disabled={isCreating || uploading}
                   >
-                    {uploading
-                      ? "Uploading..."
-                      : isCreating
-                      ? "Creating..."
-                      : "Create"}
+                    {uploading ? "Uploading..." : isCreating ? "Creating..." : "Create"}
                   </button>
                 </div>
               </div>
@@ -1016,55 +1016,39 @@ const ClassPage = () => {
           </ModalShell>
         )}
 
-        {/* TABLE */}
         <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1200px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1320px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
-                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
-                    Class Name
-                  </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Grade
-                  </th>
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
-                    Subject
-                  </th>
-                  <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">
-                    Teacher Name
-                  </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Image
-                  </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Created Date
-                  </th>
-                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
-                    Time
-                  </th>
-                  <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">
-                    Operation
-                  </th>
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">Class Name</th>
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">Batch Number</th>
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">Grade</th>
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">Subject</th>
+                  <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">Teacher Name</th>
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">Image</th>
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">Created Date</th>
+                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">Time</th>
+                  <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">Operation</th>
                 </tr>
               </thead>
 
               <tbody className="bg-white text-sm text-gray-700">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-red-600">
+                    <td colSpan={9} className="px-6 py-8 text-center text-red-600">
                       Failed to load classes
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       No class records found
                     </td>
                   </tr>
@@ -1072,9 +1056,11 @@ const ClassPage = () => {
                   paginatedRows.map((r) => (
                     <tr key={r._id} className="hover:bg-gray-50/70">
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate font-medium text-gray-800">
-                          {r.className}
-                        </div>
+                        <div className="truncate font-medium text-gray-800">{r.className}</div>
+                      </td>
+
+                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
+                        <div className="truncate">{r.batchNumber}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
@@ -1113,10 +1099,7 @@ const ClassPage = () => {
 
                       <td className="border-b border-gray-200 px-4 py-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
-                          <IconButton
-                            title="View"
-                            onClick={() => openView(r._id)}
-                          >
+                          <IconButton title="View" onClick={() => openView(r._id)}>
                             <svg
                               viewBox="0 0 24 24"
                               className="h-4 w-4"
@@ -1131,10 +1114,7 @@ const ClassPage = () => {
                             </svg>
                           </IconButton>
 
-                          <IconButton
-                            title="Update"
-                            onClick={() => openUpdate(r._id)}
-                          >
+                          <IconButton title="Update" onClick={() => openUpdate(r._id)}>
                             <svg
                               viewBox="0 0 24 24"
                               className="h-4 w-4"
@@ -1179,7 +1159,6 @@ const ClassPage = () => {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}

@@ -95,6 +95,7 @@ const LMSPage = () => {
 
   const [form, setForm] = useState({
     classId: "",
+    batchNumber: "",
     grade: "",
     stream: "",
     subject: "",
@@ -111,7 +112,7 @@ const LMSPage = () => {
 
   const autoInfo = useMemo(() => {
     if (!selectedClass) {
-      return { grade: "", stream: "", subject: "" };
+      return { batchNumber: "", grade: "", stream: "", subject: "" };
     }
 
     const gradeNo =
@@ -121,18 +122,18 @@ const LMSPage = () => {
       "";
 
     const grade = gradeNo ? `Grade ${gradeNo}` : selectedClass?.gradeLabel || "";
-
     const stream = selectedClass?.streamName || selectedClass?.stream || "";
-
     const subject = selectedClass?.subjectName || selectedClass?.subject || "";
+    const batchNumber = selectedClass?.batchNumber || "";
 
-    return { grade, stream, subject };
+    return { batchNumber, grade, stream, subject };
   }, [selectedClass]);
 
   useEffect(() => {
     if (!form.classId) {
       setForm((p) => ({
         ...p,
+        batchNumber: "",
         grade: "",
         stream: "",
         subject: "",
@@ -142,17 +143,25 @@ const LMSPage = () => {
 
     setForm((p) => ({
       ...p,
+      batchNumber: autoInfo.batchNumber,
       grade: autoInfo.grade,
       stream: autoInfo.stream,
       subject: autoInfo.subject,
     }));
-  }, [form.classId, autoInfo.grade, autoInfo.stream, autoInfo.subject]);
+  }, [
+    form.classId,
+    autoInfo.batchNumber,
+    autoInfo.grade,
+    autoInfo.stream,
+    autoInfo.subject,
+  ]);
 
   useEffect(() => {
     if (!modal.open) return;
     if (modal.mode === "create") {
       setForm({
         classId: "",
+        batchNumber: "",
         grade: "",
         stream: "",
         subject: "",
@@ -181,9 +190,11 @@ const LMSPage = () => {
 
     const stream = lesson?.classDetails?.stream || "";
     const subject = lesson?.classDetails?.subject || "";
+    const batchNumber = lesson?.classDetails?.batchNumber || "";
 
     setForm({
       classId,
+      batchNumber,
       grade,
       stream,
       subject,
@@ -198,6 +209,7 @@ const LMSPage = () => {
   const rows = useMemo(() => {
     return lessons.map((l) => {
       const className = l?.classDetails?.className || "—";
+      const batchNumber = l?.classDetails?.batchNumber || "—";
       const grade = l?.classDetails?.grade
         ? `Grade ${l.classDetails.grade}`
         : l?.classDetails?.gradeLabel || "—";
@@ -207,6 +219,7 @@ const LMSPage = () => {
       return {
         _id: l._id,
         className,
+        batchNumber,
         grade,
         stream,
         subject,
@@ -318,7 +331,7 @@ const LMSPage = () => {
               Learning Management System
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage lesson schedules, links, and class details.
+              Manage lesson schedules, links, class batches, and class details.
             </p>
           </div>
 
@@ -378,13 +391,24 @@ const LMSPage = () => {
                     <option value="">Select Class</option>
                     {classes.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.className}
+                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Batch Number
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+                      value={form.batchNumber}
+                      disabled
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Grade
@@ -527,19 +551,22 @@ const LMSPage = () => {
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1300px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1420px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Class Name
+                  </th>
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                    Batch Number
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
                   </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Stream
                   </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
@@ -566,19 +593,19 @@ const LMSPage = () => {
               <tbody className="bg-white text-sm text-gray-700">
                 {lessonsLoading ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : lessonsError ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-red-600">
+                    <td colSpan={11} className="px-6 py-8 text-center text-red-600">
                       Failed to load lessons
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                       No lesson records found
                     </td>
                   </tr>
@@ -586,9 +613,11 @@ const LMSPage = () => {
                   paginatedRows.map((r) => (
                     <tr key={r._id} className="hover:bg-gray-50/70">
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate font-medium text-gray-800">
-                          {r.className}
-                        </div>
+                        <div className="truncate font-medium text-gray-800">{r.className}</div>
+                      </td>
+
+                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
+                        <div className="truncate">{r.batchNumber}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
@@ -636,10 +665,7 @@ const LMSPage = () => {
 
                       <td className="border-b border-gray-200 px-4 py-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
-                          <IconButton
-                            title="Edit"
-                            onClick={() => openEdit(r.raw)}
-                          >
+                          <IconButton title="Edit" onClick={() => openEdit(r.raw)}>
                             <svg
                               viewBox="0 0 24 24"
                               className="h-4 w-4"

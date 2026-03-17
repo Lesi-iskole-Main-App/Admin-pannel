@@ -21,7 +21,7 @@ const ModalShell = ({ title, onClose, children }) => {
         role="button"
         tabIndex={-1}
       />
-      <div className="relative w-[95vw] max-w-[720px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+      <div className="relative w-[95vw] max-w-[760px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
           <div className="text-base font-semibold text-gray-800">{title}</div>
           <button
@@ -93,7 +93,7 @@ const LivePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const action = searchParams.get("action"); // create | update | view | null
+  const action = searchParams.get("action");
   const liveId = searchParams.get("liveId");
   const classIdFromQuery = searchParams.get("classId");
 
@@ -148,8 +148,7 @@ const LivePage = () => {
 
   const teacherName = useMemo(() => {
     const names =
-      (selectedClass?.teacherIds || []).map((t) => t?.name).filter(Boolean) ||
-      [];
+      (selectedClass?.teacherIds || []).map((t) => t?.name).filter(Boolean) || [];
     return names.join(", ") || "—";
   }, [selectedClass]);
 
@@ -168,6 +167,10 @@ const LivePage = () => {
       selectedClass?.subject ||
       "—"
     );
+  }, [selectedClass]);
+
+  const batchNumber = useMemo(() => {
+    return selectedClass?.batchNumber || "—";
   }, [selectedClass]);
 
   useEffect(() => {
@@ -204,6 +207,7 @@ const LivePage = () => {
         _id: l._id,
         classId: l?.classId?._id || l?.classId || "",
         className: details?.className || "—",
+        batchNumber: details?.batchNumber || "—",
         teacherName: (details?.teachers || []).join(", ") || "—",
         grade: details?.grade ? `Grade ${details.grade}` : "—",
         subject: details?.subject || "—",
@@ -336,7 +340,7 @@ const LivePage = () => {
               Live Session Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage live classes, meeting links, and schedules.
+              Manage live classes, meeting links, schedules, and class batches.
             </p>
           </div>
 
@@ -393,13 +397,24 @@ const LivePage = () => {
                     <option value="">Select Class</option>
                     {classes.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.className}
+                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Batch Number
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+                      value={batchNumber}
+                      disabled
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Teacher Name
@@ -553,13 +568,24 @@ const LivePage = () => {
                     <option value="">Select Class</option>
                     {classes.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.className}
+                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Batch Number
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
+                      value={batchNumber}
+                      disabled
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Teacher Name
@@ -688,19 +714,22 @@ const LivePage = () => {
 
         <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1250px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1360px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
-                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
                     Class Name
                   </th>
-                  <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
+                    Batch Number
+                  </th>
+                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
                     Teacher Name
                   </th>
                   <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
                   </th>
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
                   <th className="w-[18%] border-b border-r border-gray-200 px-4 py-3">
@@ -712,7 +741,7 @@ const LivePage = () => {
                   <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
                     Time
                   </th>
-                  <th className="w-[12%] border-b border-gray-200 px-4 py-3 text-center">
+                  <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">
                     Operation
                   </th>
                 </tr>
@@ -721,19 +750,19 @@ const LivePage = () => {
               <tbody className="bg-white text-sm text-gray-700">
                 {liveLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : liveError ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-red-600">
+                    <td colSpan={9} className="px-6 py-8 text-center text-red-600">
                       Failed to load lives
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       No live records found
                     </td>
                   </tr>
@@ -744,6 +773,10 @@ const LivePage = () => {
                         <div className="truncate font-medium text-gray-800">
                           {r.className}
                         </div>
+                      </td>
+
+                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
+                        <div className="truncate">{r.batchNumber}</div>
                       </td>
 
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">

@@ -1,67 +1,47 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { api } from "./api";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
-
-export const classApi = createApi({
-  reducerPath: "classApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${BACKEND_URL}/api/class`,
-    credentials: "include",
-    prepareHeaders: (headers, { getState }) => {
-      const reduxToken = getState()?.auth?.token;
-      const storageToken = localStorage.getItem("token");
-      const token = reduxToken || storageToken;
-
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-      headers.set("Content-Type", "application/json");
-      return headers;
-    },
-  }),
-  tagTypes: ["Class"],
+export const classApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getAllClasses: builder.query({
-      query: () => `/`,
-      providesTags: (result) =>
-        result?.classes
-          ? [
-              { type: "Class", id: "LIST" },
-              ...result.classes.map((c) => ({ type: "Class", id: c._id })),
-            ]
-          : [{ type: "Class", id: "LIST" }],
+      query: () => "/class",
+      providesTags: ["Class"],
     }),
 
     getClassById: builder.query({
-      query: (classId) => `/${classId}`,
+      query: (classId) => `/class/${classId}`,
       providesTags: (result, error, classId) => [{ type: "Class", id: classId }],
     }),
 
     createClass: builder.mutation({
       query: (body) => ({
-        url: `/`,
+        url: "/class",
         method: "POST",
         body,
       }),
-      invalidatesTags: [{ type: "Class", id: "LIST" }],
+      invalidatesTags: ["Class", "Live", "Lesson", "Recording"],
     }),
 
     updateClass: builder.mutation({
       query: ({ classId, body }) => ({
-        url: `/${classId}`,
+        url: `/class/${classId}`,
         method: "PATCH",
         body,
       }),
       invalidatesTags: (result, error, { classId }) => [
-        { type: "Class", id: "LIST" },
+        "Class",
+        "Live",
+        "Lesson",
+        "Recording",
         { type: "Class", id: classId },
       ],
     }),
 
     deleteClass: builder.mutation({
       query: (classId) => ({
-        url: `/${classId}`,
+        url: `/class/${classId}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "Class", id: "LIST" }],
+      invalidatesTags: ["Class", "Live", "Lesson", "Recording"],
     }),
   }),
 });

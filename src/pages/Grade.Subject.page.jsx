@@ -66,7 +66,6 @@ const uniqueSubjects = (items = []) => {
   return out.sort((a, b) => a.localeCompare(b));
 };
 
-/* ---------------------- PROFESSIONAL MODAL ---------------------- */
 const Modal = ({ open, title, children, onClose, maxWidth = "max-w-lg" }) => {
   if (!open) return null;
 
@@ -94,7 +93,6 @@ const Modal = ({ open, title, children, onClose, maxWidth = "max-w-lg" }) => {
 
 const gradeOptions = Array.from({ length: 11 }, (_, i) => i + 1);
 
-/* -------------------- Modal: Grade 1–11 Subjects -------------------- */
 function GradeSubjectsModal({ open, grade, onClose }) {
   const gradeId = grade?._id;
   const enabled = open && gradeId;
@@ -234,7 +232,6 @@ function GradeSubjectsModal({ open, grade, onClose }) {
   );
 }
 
-/* -------------------- Modal: A/L Stream Subjects -------------------- */
 function ALStreamSubjectsModal({ open, grade, onClose }) {
   const gradeId = grade?._id;
   const enabled = open && gradeId;
@@ -537,7 +534,6 @@ function ALStreamSubjectsModal({ open, grade, onClose }) {
   );
 }
 
-/* --------------------- Main Page --------------------- */
 const GradeSubjectPage = () => {
   const navigate = useNavigate();
   const { data, isLoading, refetch } = useGetGradesQuery();
@@ -592,10 +588,11 @@ const GradeSubjectPage = () => {
 
     try {
       if (raw === "al") {
-        await createGrade({ grade: "al", flowType: "al" }).unwrap();
+        await createGrade({ grade: 12, flowType: "al" }).unwrap();
         setTopOpen(false);
         setTopGradeNumber("");
         setTopName("");
+        await refetch();
         return;
       }
 
@@ -724,7 +721,6 @@ const GradeSubjectPage = () => {
           </div>
         </div>
 
-        {/* TABLE 1 */}
         <div className="mt-6">
           <h2 className="text-lg font-semibold text-gray-800">Grades 1 - 11</h2>
 
@@ -853,7 +849,6 @@ const GradeSubjectPage = () => {
           </div>
         </div>
 
-        {/* TABLE 2 */}
         <div className="mt-8">
           <h2 className="text-lg font-semibold text-gray-800">A/L Flow</h2>
 
@@ -906,7 +901,6 @@ const GradeSubjectPage = () => {
           </div>
         </div>
 
-        {/* TOP ADD MODAL */}
         <Modal
           open={topOpen}
           title="Add Grade / A/L Flow"
@@ -985,7 +979,6 @@ const GradeSubjectPage = () => {
           </div>
         </Modal>
 
-        {/* ADD SUBJECT MODAL */}
         <Modal
           open={addOpen}
           title={
@@ -1033,7 +1026,6 @@ const GradeSubjectPage = () => {
           </div>
         </Modal>
 
-        {/* VIEW MODALS */}
         <GradeSubjectsModal
           open={subjectsOpen}
           grade={selectedGrade}
@@ -1056,8 +1048,7 @@ const GradeSubjectPage = () => {
   );
 };
 
-/* --------------------- A/L ROW --------------------- */
-function ALRow({ grade, onManageSubjects, onDelete }) {
+function ALRow({ grade, onManageSubjects }) {
   const { data, isLoading } = useGetStreamsByGradeQuery(grade._id);
   const streams = useMemo(() => sortStreams(data?.streams || []), [data]);
 
@@ -1112,8 +1103,6 @@ function ALRow({ grade, onManageSubjects, onDelete }) {
           >
             Manage Subjects
           </button>
-
-        
         </div>
       </td>
     </tr>

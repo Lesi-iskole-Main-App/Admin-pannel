@@ -1,78 +1,44 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { api } from "./api";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
-
-export const liveApi = createApi({
-  reducerPath: "liveApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${BACKEND_URL}/api/live`,
-    credentials: "include",
-    prepareHeaders: (headers, { getState }) => {
-      const reduxToken = getState()?.auth?.token;
-      const storageToken = localStorage.getItem("token");
-      const token = reduxToken || storageToken;
-
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-      headers.set("Content-Type", "application/json");
-      return headers;
-    },
-  }),
-  tagTypes: ["Live"],
+export const liveApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getAllLives: builder.query({
-      query: () => ({
-        url: "/",
-        method: "GET",
-      }),
-      providesTags: (res) =>
-        res?.lives
-          ? [
-              ...res.lives.map((x) => ({ type: "Live", id: x._id })),
-              { type: "Live", id: "LIST" },
-            ]
-          : [{ type: "Live", id: "LIST" }],
+      query: () => "/live",
+      providesTags: ["Live"],
     }),
 
     getLiveById: builder.query({
-      query: ({ classId, liveId }) => ({
-        url: `/class/${classId}/${liveId}`,
-        method: "GET",
-      }),
-      providesTags: (res, err, arg) => [
-        { type: "Live", id: arg?.liveId || "UNKNOWN" },
-      ],
+      query: ({ classId, liveId }) => `/live/${classId}/${liveId}`,
+      providesTags: (result, error, { liveId }) => [{ type: "Live", id: liveId }],
     }),
 
     createLive: builder.mutation({
       query: ({ classId, ...body }) => ({
-        url: `/class/${classId}`,
+        url: `/live/${classId}`,
         method: "POST",
         body,
       }),
-      invalidatesTags: [{ type: "Live", id: "LIST" }],
+      invalidatesTags: ["Live"],
     }),
 
     updateLive: builder.mutation({
       query: ({ classId, liveId, body }) => ({
-        url: `/class/${classId}/${liveId}`,
+        url: `/live/${classId}/${liveId}`,
         method: "PATCH",
         body,
       }),
-      invalidatesTags: (res, err, arg) => [
-        { type: "Live", id: arg?.liveId },
-        { type: "Live", id: "LIST" },
+      invalidatesTags: (result, error, { liveId }) => [
+        "Live",
+        { type: "Live", id: liveId },
       ],
     }),
 
     deleteLive: builder.mutation({
       query: ({ classId, liveId }) => ({
-        url: `/class/${classId}/${liveId}`,
+        url: `/live/${classId}/${liveId}`,
         method: "DELETE",
       }),
-      invalidatesTags: (res, err, arg) => [
-        { type: "Live", id: arg?.liveId },
-        { type: "Live", id: "LIST" },
-      ],
+      invalidatesTags: ["Live"],
     }),
   }),
 });
