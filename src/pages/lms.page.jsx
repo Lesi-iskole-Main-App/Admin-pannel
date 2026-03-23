@@ -121,8 +121,20 @@ const LMSPage = () => {
       selectedClass?.grade ||
       "";
 
-    const grade = gradeNo ? `Grade ${gradeNo}` : selectedClass?.gradeLabel || "";
-    const stream = selectedClass?.streamName || selectedClass?.stream || "";
+    const grade =
+      selectedClass?.gradeLabel ||
+      (gradeNo === 12 || gradeNo === 13
+        ? "A/L"
+        : gradeNo
+        ? `Grade ${gradeNo}`
+        : "");
+
+    const stream =
+      Array.isArray(selectedClass?.streamNames) &&
+      selectedClass.streamNames.length > 0
+        ? selectedClass.streamNames.join(", ")
+        : selectedClass?.streamName || selectedClass?.stream || "";
+
     const subject = selectedClass?.subjectName || selectedClass?.subject || "";
     const batchNumber = selectedClass?.batchNumber || "";
 
@@ -184,11 +196,19 @@ const LMSPage = () => {
 
     const classId = lesson?.classId || "";
 
-    const grade = lesson?.classDetails?.grade
-      ? `Grade ${lesson.classDetails.grade}`
-      : lesson?.classDetails?.gradeLabel || "";
+    const grade =
+      lesson?.classDetails?.grade === 12 || lesson?.classDetails?.grade === 13
+        ? "A/L"
+        : lesson?.classDetails?.grade
+        ? `Grade ${lesson.classDetails.grade}`
+        : lesson?.classDetails?.gradeLabel || "";
 
-    const stream = lesson?.classDetails?.stream || "";
+    const stream =
+      Array.isArray(lesson?.classDetails?.streams) &&
+      lesson.classDetails.streams.length > 0
+        ? lesson.classDetails.streams.join(", ")
+        : lesson?.classDetails?.stream || "";
+
     const subject = lesson?.classDetails?.subject || "";
     const batchNumber = lesson?.classDetails?.batchNumber || "";
 
@@ -209,10 +229,19 @@ const LMSPage = () => {
   const rows = useMemo(() => {
     return lessons.map((l) => {
       const className = l?.classDetails?.className || "—";
-      const grade = l?.classDetails?.grade
-        ? `Grade ${l.classDetails.grade}`
-        : l?.classDetails?.gradeLabel || "—";
-      const stream = l?.classDetails?.stream || "—";
+      const grade =
+        l?.classDetails?.grade === 12 || l?.classDetails?.grade === 13
+          ? "A/L"
+          : l?.classDetails?.grade
+          ? `Grade ${l.classDetails.grade}`
+          : l?.classDetails?.gradeLabel || "—";
+
+      const stream =
+        Array.isArray(l?.classDetails?.streams) &&
+        l.classDetails.streams.length > 0
+          ? l.classDetails.streams.join(", ")
+          : l?.classDetails?.stream || "—";
+
       const subject = l?.classDetails?.subject || "—";
       const batchNumber = l?.classDetails?.batchNumber || "—";
 

@@ -60,6 +60,23 @@ const isALGrade = (gradeLike) =>
   Number(gradeLike) === 12 ||
   Number(gradeLike) === 13;
 
+const getUniqueALSubjects = (grade) => {
+  const seen = new Set();
+  const list = [];
+
+  for (const st of grade?.streams || []) {
+    for (const sub of st?.subjects || []) {
+      const name = String(sub?.subject || "").trim();
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      list.push(name);
+    }
+  }
+
+  return list.sort((a, b) => a.localeCompare(b));
+};
+
 const ClassPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -147,7 +164,7 @@ const ClassPage = () => {
 
       const subjectDisplay =
         c?.gradeId?.flowType === "al"
-          ? [c?.streamName, c?.subjectName].filter(Boolean).join(" / ") || "—"
+          ? [c?.subjectName, c?.streamName].filter(Boolean).join(" / ") || "—"
           : c?.subjectName || "—";
 
       return {
@@ -214,8 +231,7 @@ const ClassPage = () => {
     batchNumber: "",
     gradeId: "",
     subjectId: "",
-    streamId: "",
-    streamSubjectId: "",
+    alSubjectName: "",
     teacherIds: [],
     imageUrl: "",
     imagePublicId: "",
@@ -233,17 +249,9 @@ const ClassPage = () => {
     return Array.isArray(selectedGrade?.subjects) ? selectedGrade.subjects : [];
   }, [selectedGrade]);
 
-  const streams = useMemo(() => {
-    return Array.isArray(selectedGrade?.streams) ? selectedGrade.streams : [];
-  }, [selectedGrade]);
-
-  const selectedStream = useMemo(() => {
-    return streams.find((s) => String(s?._id) === String(form.streamId));
-  }, [streams, form.streamId]);
-
-  const streamSubjects = useMemo(() => {
-    return Array.isArray(selectedStream?.subjects) ? selectedStream.subjects : [];
-  }, [selectedStream]);
+  const alSubjects = useMemo(() => {
+    return isAL ? getUniqueALSubjects(selectedGrade) : [];
+  }, [isAL, selectedGrade]);
 
   useEffect(() => {
     if (!form.gradeId) return;
@@ -255,46 +263,25 @@ const ClassPage = () => {
         setForm((p) => ({ ...p, subjectId: "" }));
       }
 
-      if (form.streamId || form.streamSubjectId) {
-        setForm((p) => ({
-          ...p,
-          streamId: "",
-          streamSubjectId: "",
-        }));
+      if (form.alSubjectName) {
+        setForm((p) => ({ ...p, alSubjectName: "" }));
       }
 
       return;
     }
 
-    const validStreamIds = new Set(streams.map((s) => String(s?._id)));
-
-    if (form.streamId && !validStreamIds.has(String(form.streamId))) {
-      setForm((p) => ({
-        ...p,
-        streamId: "",
-        streamSubjectId: "",
-      }));
-    }
-
     if (form.subjectId) {
       setForm((p) => ({ ...p, subjectId: "" }));
     }
-  }, [form.gradeId, isAL, subjects, streams]);
 
-  useEffect(() => {
-    if (!isAL) return;
-
-    const validStreamSubjectIds = new Set(
-      streamSubjects.map((s) => String(s?._id))
-    );
-
+    const validAL = new Set(alSubjects.map((s) => s.toLowerCase()));
     if (
-      form.streamSubjectId &&
-      !validStreamSubjectIds.has(String(form.streamSubjectId))
+      form.alSubjectName &&
+      !validAL.has(String(form.alSubjectName).trim().toLowerCase())
     ) {
-      setForm((p) => ({ ...p, streamSubjectId: "" }));
+      setForm((p) => ({ ...p, alSubjectName: "" }));
     }
-  }, [isAL, streamSubjects, form.streamSubjectId]);
+  }, [form.gradeId, isAL, subjects, alSubjects]);
 
   useEffect(() => {
     if (action === "create") {
@@ -312,8 +299,7 @@ const ClassPage = () => {
       batchNumber: c?.batchNumber || "",
       gradeId: c?.gradeId?._id || c?.gradeId || "",
       subjectId: c?.subjectId || "",
-      streamId: c?.streamId || "",
-      streamSubjectId: c?.streamSubjectId || "",
+      alSubjectName: c?.alSubjectName || c?.subjectName || "",
       teacherIds: (c?.teacherIds || []).map((t) => t?._id).filter(Boolean),
       imageUrl: c?.imageUrl || "",
       imagePublicId: c?.imagePublicId || "",
@@ -341,8 +327,8 @@ const ClassPage = () => {
     }
 
     if (isAL) {
-      if (!form.streamId || !form.streamSubjectId) {
-        alert("For A/L classes, stream and subject are required");
+      if (!form.alSubjectName) {
+        alert("For A/L classes, subject is required");
         return false;
       }
     } else {
@@ -364,13 +350,11 @@ const ClassPage = () => {
       imageUrl: form.imageUrl,
       imagePublicId: form.imagePublicId,
       subjectId: null,
-      streamId: null,
-      streamSubjectId: null,
+      alSubjectName: "",
     };
 
     if (isAL) {
-      payload.streamId = form.streamId;
-      payload.streamSubjectId = form.streamSubjectId;
+      payload.alSubjectName = form.alSubjectName;
     } else {
       payload.subjectId = form.subjectId;
     }
@@ -570,7 +554,9 @@ const ClassPage = () => {
 
                 {classRes?.class?.gradeId?.flowType === "al" && (
                   <div>
-                    <div className="text-sm font-medium text-gray-700">Stream</div>
+                    <div className="text-sm font-medium text-gray-700">
+                      Related Streams
+                    </div>
                     <div className="mt-1 text-sm text-gray-900">
                       {classRes?.class?.streamName || "—"}
                     </div>
@@ -688,8 +674,7 @@ const ClassPage = () => {
                         ...p,
                         gradeId: e.target.value,
                         subjectId: "",
-                        streamId: "",
-                        streamSubjectId: "",
+                        alSubjectName: "",
                       }))
                     }
                   >
@@ -730,62 +715,33 @@ const ClassPage = () => {
                     </select>
                   </div>
                 ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Stream
-                      </label>
-                      <select
-                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                        value={form.streamId}
-                        onChange={(e) =>
-                          setForm((p) => ({
-                            ...p,
-                            streamId: e.target.value,
-                            streamSubjectId: "",
-                          }))
-                        }
-                        disabled={!form.gradeId}
-                      >
-                        <option value="">
-                          {form.gradeId ? "Select Stream" : "Select grade first"}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      A/L Subject
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+                      value={form.alSubjectName}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, alSubjectName: e.target.value }))
+                      }
+                      disabled={!form.gradeId}
+                    >
+                      <option value="">
+                        {form.gradeId ? "Select Subject" : "Select grade first"}
+                      </option>
+                      {alSubjects.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
                         </option>
-                        {streams.map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.stream}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      ))}
+                    </select>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Subject
-                      </label>
-                      <select
-                        className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                        value={form.streamSubjectId}
-                        onChange={(e) =>
-                          setForm((p) => ({
-                            ...p,
-                            streamSubjectId: e.target.value,
-                          }))
-                        }
-                        disabled={!form.streamId}
-                      >
-                        <option value="">
-                          {form.streamId
-                            ? "Select Subject"
-                            : "Select stream first"}
-                        </option>
-                        {streamSubjects.map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.subject}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
+                    <p className="mt-2 text-xs text-blue-600">
+                      For A/L, class is created subject-wise. This class will show
+                      under every stream where this subject exists.
+                    </p>
+                  </div>
                 )}
 
                 <div>

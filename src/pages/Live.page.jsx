@@ -94,7 +94,7 @@ const getClassDisplay = (c) => {
 
   const subjectText =
     c?.gradeId?.flowType === "al"
-      ? [c?.streamName, c?.subjectName].filter(Boolean).join(" / ") || "—"
+      ? [c?.subjectName, c?.streamName].filter(Boolean).join(" / ") || "—"
       : c?.subjectName || "—";
 
   return `${c?.className || "—"} | ${c?.batchNumber || "—"} | ${gradeText} | ${subjectText}`;
@@ -204,7 +204,12 @@ const LivePage = () => {
             : classDetails?.grade
             ? `Grade ${classDetails.grade}`
             : "—",
-        subject: classDetails?.subject || "—",
+        subject:
+          classDetails?.grade === 12 || classDetails?.grade === 13
+            ? [classDetails?.subject, ...(classDetails?.streams || [])]
+                .filter(Boolean)
+                .join(" / ")
+            : classDetails?.subject || "—",
         teacherNames: teacherNames || "No Teacher",
         zoomLinks,
         firstZoomLink: zoomLinks[0] || "",
@@ -490,6 +495,18 @@ const LivePage = () => {
                     {liveRes?.live?.classDetails?.subject || "—"}
                   </div>
                 </div>
+
+                {Array.isArray(liveRes?.live?.classDetails?.streams) &&
+                  liveRes.live.classDetails.streams.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">
+                        Related Streams
+                      </div>
+                      <div className="mt-1 text-sm text-gray-900">
+                        {liveRes.live.classDetails.streams.join(", ")}
+                      </div>
+                    </div>
+                  )}
 
                 <div>
                   <div className="text-sm font-medium text-gray-700">

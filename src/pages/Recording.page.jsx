@@ -122,20 +122,29 @@ const RecordingPage = () => {
       return { batchNumber: "", grade: "", subject: "", teacherName: "" };
     }
 
-    const grade = selectedClass?.gradeNo
-      ? `Grade ${selectedClass.gradeNo}`
-      : selectedClass?.gradeId?.grade
-      ? `Grade ${selectedClass.gradeId.grade}`
-      : selectedClass?.grade
-      ? `Grade ${selectedClass.grade}`
-      : "";
+    const grade =
+      selectedClass?.gradeLabel ||
+      selectedClass?.gradeNo === 12 ||
+      selectedClass?.gradeId?.grade === 12
+        ? "A/L"
+        : selectedClass?.gradeNo
+        ? `Grade ${selectedClass.gradeNo}`
+        : selectedClass?.gradeId?.grade
+        ? `Grade ${selectedClass.gradeId.grade}`
+        : selectedClass?.grade
+        ? `Grade ${selectedClass.grade}`
+        : "";
 
     const subject =
-      selectedClass?.subjectName ||
-      selectedClass?.subjectId?.subject ||
-      selectedClass?.streamSubjectId?.subject ||
-      selectedClass?.subject ||
-      "";
+      selectedClass?.gradeId?.flowType === "al"
+        ? [selectedClass?.subjectName || "", selectedClass?.streamName || ""]
+            .filter(Boolean)
+            .join(" / ")
+        : selectedClass?.subjectName ||
+          selectedClass?.subjectId?.subject ||
+          selectedClass?.streamSubjectId?.subject ||
+          selectedClass?.subject ||
+          "";
 
     const teacherName =
       (selectedClass?.teacherIds || [])
@@ -210,11 +219,26 @@ const RecordingPage = () => {
 
     const batchNumber = recording?.classDetails?.batchNumber || "";
 
-    const grade = recording?.classDetails?.grade
-      ? `Grade ${recording.classDetails.grade}`
-      : "";
+    const grade =
+      recording?.classDetails?.grade === 12 ||
+      recording?.classDetails?.grade === 13
+        ? "A/L"
+        : recording?.classDetails?.grade
+        ? `Grade ${recording.classDetails.grade}`
+        : "";
 
-    const subject = recording?.classDetails?.subject || "";
+    const subject =
+      recording?.classDetails?.grade === 12 ||
+      recording?.classDetails?.grade === 13
+        ? [
+            recording?.classDetails?.subject || "",
+            ...(Array.isArray(recording?.classDetails?.streams)
+              ? recording.classDetails.streams
+              : []),
+          ]
+            .filter(Boolean)
+            .join(" / ")
+        : recording?.classDetails?.subject || "";
 
     const teacherName =
       (recording?.classDetails?.teachers || []).join(", ") || "No Teacher";
@@ -237,10 +261,26 @@ const RecordingPage = () => {
     return recordings.map((r) => {
       const className = r?.classDetails?.className || "—";
       const batchNumber = r?.classDetails?.batchNumber || "—";
-      const grade = r?.classDetails?.grade
-        ? `Grade ${r.classDetails.grade}`
-        : "—";
-      const subject = r?.classDetails?.subject || "—";
+
+      const grade =
+        r?.classDetails?.grade === 12 || r?.classDetails?.grade === 13
+          ? "A/L"
+          : r?.classDetails?.grade
+          ? `Grade ${r.classDetails.grade}`
+          : "—";
+
+      const subject =
+        r?.classDetails?.grade === 12 || r?.classDetails?.grade === 13
+          ? [
+              r?.classDetails?.subject || "",
+              ...(Array.isArray(r?.classDetails?.streams)
+                ? r.classDetails.streams
+                : []),
+            ]
+              .filter(Boolean)
+              .join(" / ")
+          : r?.classDetails?.subject || "—";
+
       const teacher =
         (r?.classDetails?.teachers || []).join(", ") || "No Teacher";
 

@@ -10,26 +10,51 @@ export const enrollApi = createApi({
     prepareHeaders: (headers, { getState }) => {
       const token = getState()?.auth?.token;
       if (token) headers.set("Authorization", `Bearer ${token}`);
+      headers.set("Content-Type", "application/json");
       return headers;
     },
   }),
-  tagTypes: ["PendingEnrollRequests"],
+  tagTypes: ["Enroll", "PendingEnrollRequests", "PendingEnrollRequestOptions"],
   endpoints: (builder) => ({
+    requestEnroll: builder.mutation({
+      query: (payload) => ({
+        url: "/request",
+        method: "POST",
+        body: payload,
+      }),
+      invalidatesTags: ["Enroll"],
+    }),
+
+    getMyEnrollRequests: builder.query({
+      query: () => ({
+        url: "/my",
+        method: "GET",
+      }),
+      providesTags: ["Enroll"],
+    }),
+
+    getMyApprovedClasses: builder.query({
+      query: () => ({
+        url: "/my-approved-classes",
+        method: "GET",
+      }),
+      providesTags: ["Enroll"],
+    }),
+
     getPendingEnrollRequestOptions: builder.query({
       query: () => ({
         url: "/pending-options",
         method: "GET",
       }),
-      providesTags: ["PendingEnrollRequests"],
+      providesTags: ["PendingEnrollRequestOptions"],
     }),
 
     getPendingEnrollRequests: builder.query({
       query: (params = {}) => {
         const search = new URLSearchParams();
 
-        if (params.level) search.set("level", params.level);
         if (params.grade) search.set("grade", params.grade);
-        if (params.stream) search.set("stream", params.stream);
+        if (params.subject) search.set("subject", params.subject);
         if (params.phonenumber) search.set("phonenumber", params.phonenumber);
         if (params.batchNumber) search.set("batchNumber", params.batchNumber);
         if (params.page) search.set("page", String(params.page));
@@ -50,7 +75,11 @@ export const enrollApi = createApi({
         url: `/approve/${enrollId}`,
         method: "PATCH",
       }),
-      invalidatesTags: ["PendingEnrollRequests"],
+      invalidatesTags: [
+        "PendingEnrollRequests",
+        "PendingEnrollRequestOptions",
+        "Enroll",
+      ],
     }),
 
     rejectEnroll: builder.mutation({
@@ -58,12 +87,19 @@ export const enrollApi = createApi({
         url: `/reject/${enrollId}`,
         method: "PATCH",
       }),
-      invalidatesTags: ["PendingEnrollRequests"],
+      invalidatesTags: [
+        "PendingEnrollRequests",
+        "PendingEnrollRequestOptions",
+        "Enroll",
+      ],
     }),
   }),
 });
 
 export const {
+  useRequestEnrollMutation,
+  useGetMyEnrollRequestsQuery,
+  useGetMyApprovedClassesQuery,
   useGetPendingEnrollRequestOptionsQuery,
   useGetPendingEnrollRequestsQuery,
   useApproveEnrollMutation,

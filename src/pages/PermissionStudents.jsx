@@ -47,7 +47,6 @@ const PendingRequestCard = ({
   const cd = row?.classDetails || {};
   const isAL = cd?.flowType === "al";
   const gradeText = isAL ? "A/L" : cd?.grade ? `Grade ${cd.grade}` : "-";
-  const streamText = isAL ? cd?.streamLabel || cd?.stream || "-" : "-";
   const batchText = cd?.batchNumber || "-";
 
   return (
@@ -82,13 +81,6 @@ const PendingRequestCard = ({
           <span className="font-semibold text-gray-800">Grade:</span>{" "}
           {gradeText}
         </div>
-
-        {isAL ? (
-          <div>
-            <span className="font-semibold text-gray-800">Stream:</span>{" "}
-            {streamText}
-          </div>
-        ) : null}
 
         <div>
           <span className="font-semibold text-gray-800">Subject:</span>{" "}
@@ -141,9 +133,8 @@ const PermissionStudents = () => {
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
-    level: "",
     grade: "",
-    stream: "",
+    subject: "",
     phonenumber: "",
     batchNumber: "",
     page: 1,
@@ -169,19 +160,14 @@ const PermissionStudents = () => {
   const limit = Number(data?.limit || filters.limit || 12);
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  const levelOptions = optionsData?.levels || [];
   const batchOptions = optionsData?.batchNumbers || [];
+  const gradeOptions = optionsData?.grades || [];
 
-  const gradeOptions = useMemo(() => {
-    const all = optionsData?.grades || [];
-    if (!filters.level || filters.level === "al") return [];
-    return all.filter((g) => String(g.level) === String(filters.level));
-  }, [optionsData?.grades, filters.level]);
-
-  const streamOptions = useMemo(() => {
-    if (filters.level !== "al") return [];
-    return optionsData?.streams || [];
-  }, [optionsData?.streams, filters.level]);
+  const subjectOptions = useMemo(() => {
+    const all = optionsData?.subjects || [];
+    if (!filters.grade) return [];
+    return all.filter((s) => String(s.grade) === String(filters.grade));
+  }, [optionsData?.subjects, filters.grade]);
 
   const errorText =
     error?.data?.message || error?.error || "Failed to load pending requests";
@@ -275,7 +261,7 @@ const PermissionStudents = () => {
         </div>
 
         <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Input
               label="Phone Number"
               value={filters.phonenumber}
@@ -304,53 +290,32 @@ const PermissionStudents = () => {
             />
 
             <Select
-              label="Level"
-              value={filters.level}
-              onChange={(v) =>
-                setFilters((p) => ({
-                  ...p,
-                  level: v,
-                  grade: "",
-                  stream: "",
-                  page: 1,
-                }))
-              }
-              options={levelOptions}
-              placeholder="Select level"
-            />
-
-            <Select
               label="Grade"
               value={filters.grade}
               onChange={(v) =>
                 setFilters((p) => ({
                   ...p,
                   grade: v,
+                  subject: "",
                   page: 1,
                 }))
               }
               options={gradeOptions}
-              placeholder={
-                filters.level && filters.level !== "al"
-                  ? "Select grade"
-                  : "Select level first"
-              }
+              placeholder="Select grade"
             />
 
             <Select
-              label="Stream"
-              value={filters.stream}
+              label="Subject"
+              value={filters.subject}
               onChange={(v) =>
                 setFilters((p) => ({
                   ...p,
-                  stream: v,
+                  subject: v,
                   page: 1,
                 }))
               }
-              options={streamOptions}
-              placeholder={
-                filters.level === "al" ? "Select stream" : "A/L only"
-              }
+              options={subjectOptions}
+              placeholder={filters.grade ? "Select subject" : "Select grade first"}
             />
           </div>
 
@@ -359,9 +324,8 @@ const PermissionStudents = () => {
               type="button"
               onClick={() =>
                 setFilters({
-                  level: "",
                   grade: "",
-                  stream: "",
+                  subject: "",
                   phonenumber: "",
                   batchNumber: "",
                   page: 1,
