@@ -8,7 +8,9 @@ export const teacherApi = createApi({
     baseUrl: `${BACKEND_URL}/api/user`,
     credentials: "include",
     prepareHeaders: (headers, { getState }) => {
-      const token = getState()?.auth?.token;
+      const reduxToken = getState()?.auth?.token;
+      const storageToken = localStorage.getItem("token");
+      const token = reduxToken || storageToken;
       if (token) headers.set("Authorization", `Bearer ${token}`);
       return headers;
     },
@@ -17,6 +19,11 @@ export const teacherApi = createApi({
   endpoints: (builder) => ({
     getAllUsers: builder.query({
       query: () => "/",
+      transformResponse: (response) => {
+        if (Array.isArray(response)) return { users: response };
+        if (Array.isArray(response?.users)) return response;
+        return { users: [] };
+      },
       providesTags: (result) =>
         result?.users
           ? [

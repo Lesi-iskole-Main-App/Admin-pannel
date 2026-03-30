@@ -1,4 +1,3 @@
-// src/api/teacherAssignmentApi.js
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
@@ -18,9 +17,8 @@ export const teacherAssignmentApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ["Teachers", "TeacherFormData", "TeacherAssign"],
+  tagTypes: ["Teachers", "TeacherFormData"],
   endpoints: (builder) => ({
-    // GET /api/teacher?status=pending|approved|all
     getTeachers: builder.query({
       query: ({ status = "all" } = {}) => `/?status=${status}`,
       providesTags: (result) =>
@@ -32,7 +30,6 @@ export const teacherAssignmentApi = createApi({
           : [{ type: "Teachers", id: "LIST" }],
     }),
 
-    // GET /api/teacher/:teacherId/form-data
     getTeacherFormData: builder.query({
       query: (teacherId) => `/${teacherId}/form-data`,
       providesTags: (result, error, teacherId) => [
@@ -40,7 +37,7 @@ export const teacherAssignmentApi = createApi({
       ],
     }),
 
-    // POST /api/teacher/:teacherId/assign  (append+merge)
+    // append classes
     assignTeacher: builder.mutation({
       query: ({ teacherId, body }) => ({
         url: `/${teacherId}/assign`,
@@ -49,12 +46,11 @@ export const teacherAssignmentApi = createApi({
       }),
       invalidatesTags: (result, error, { teacherId }) => [
         { type: "TeacherFormData", id: teacherId },
-        { type: "TeacherAssign", id: teacherId },
         { type: "Teachers", id: "LIST" },
       ],
     }),
 
-    // ✅ PUT /api/teacher/:teacherId/assign  (replace - EDIT)
+    // replace all classes
     replaceTeacherAssignments: builder.mutation({
       query: ({ teacherId, body }) => ({
         url: `/${teacherId}/assign`,
@@ -63,12 +59,10 @@ export const teacherAssignmentApi = createApi({
       }),
       invalidatesTags: (result, error, { teacherId }) => [
         { type: "TeacherFormData", id: teacherId },
-        { type: "TeacherAssign", id: teacherId },
         { type: "Teachers", id: "LIST" },
       ],
     }),
 
-    // ✅ PATCH /api/teacher/:teacherId/access  (disable/enable)
     setTeacherAccess: builder.mutation({
       query: ({ teacherId, isActive }) => ({
         url: `/${teacherId}/access`,

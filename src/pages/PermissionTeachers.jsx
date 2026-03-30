@@ -1,4 +1,3 @@
-// src/pages/PermissonTeachers.page.jsx
 import React, { useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +8,7 @@ import {
   useRejectTeacherMutation,
 } from "../api/teacherApi";
 
-const PermissonTeachers = () => {
+const PermissionTeachers = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { search } = useSelector((s) => s.teacher);
@@ -18,9 +17,8 @@ const PermissonTeachers = () => {
   const [approveTeacher, { isLoading: approving }] = useApproveTeacherMutation();
   const [rejectTeacher, { isLoading: rejecting }] = useRejectTeacherMutation();
 
-  // ✅ only pending teachers
   const pendingTeachers = useMemo(() => {
-    const users = data?.users || [];
+    const users = Array.isArray(data?.users) ? data.users : [];
     let list = users.filter((u) => u.role === "teacher" && !u.isApproved);
 
     const q = String(search || "").trim().toLowerCase();
@@ -42,6 +40,7 @@ const PermissonTeachers = () => {
   const onApprove = async (id) => {
     try {
       await approveTeacher(id).unwrap();
+      refetch();
     } catch (e) {
       alert(String(e?.data?.message || e?.error || "Approve failed"));
     }
@@ -53,13 +52,14 @@ const PermissonTeachers = () => {
 
     try {
       await rejectTeacher(id).unwrap();
+      refetch();
     } catch (e) {
       alert(String(e?.data?.message || e?.error || "Reject failed"));
     }
   };
 
   return (
-    <div className="flex w-full justify-center ">
+    <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -102,7 +102,6 @@ const PermissonTeachers = () => {
           </div>
         </div>
 
-        {/* top controls */}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           <input
             value={search}
@@ -112,7 +111,6 @@ const PermissonTeachers = () => {
           />
         </div>
 
-        {/* state */}
         <div className="mt-5">
           {isLoading ? (
             <div className="border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
@@ -131,9 +129,6 @@ const PermissonTeachers = () => {
                   Retry
                 </button>
               </div>
-              <div className="mt-2 text-sm text-gray-500">
-                Make sure you are logged in as <b>admin</b>.
-              </div>
             </div>
           ) : pendingTeachers.length === 0 ? (
             <div className="border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
@@ -142,20 +137,18 @@ const PermissonTeachers = () => {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {pendingTeachers.map((t) => (
-                <div
-                  key={t._id}
-                  className="border border-gray-200 bg-white"
-                >
+                <div key={t._id} className="border border-gray-200 bg-white">
                   <div className="flex h-full flex-col p-5">
-                    {/* header */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="truncate text-base font-medium text-gray-900">
                           {t.name}
                         </div>
-                        <div className="mt-1 truncate text-sm text-gray-600">
-                          {t.email}
-                        </div>
+                        {!!t.email && (
+                          <div className="mt-1 truncate text-sm text-gray-600">
+                            {t.email}
+                          </div>
+                        )}
                         <div className="mt-1 truncate text-sm text-gray-600">
                           {t.phonenumber}
                         </div>
@@ -172,7 +165,6 @@ const PermissonTeachers = () => {
                       </span>
                     </div>
 
-                    {/* footer pinned bottom */}
                     <div className="mt-auto flex justify-end gap-2 pt-5">
                       <button
                         onClick={() => onReject(t._id)}
@@ -201,4 +193,4 @@ const PermissonTeachers = () => {
   );
 };
 
-export default PermissonTeachers;
+export default PermissionTeachers;
