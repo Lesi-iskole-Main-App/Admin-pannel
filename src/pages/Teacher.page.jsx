@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useGetTeachersQuery,
@@ -27,10 +27,13 @@ const TeacherPage = () => {
   const [searchParams] = useSearchParams();
 
   const editTeacherId = searchParams.get("teacherId") || "";
-  const isEditMode = !!editTeacherId;
+  const isEditMode = Boolean(editTeacherId);
 
   const [selectedTeacherId, setSelectedTeacherId] = useState(editTeacherId || "");
   const [rows, setRows] = useState([{ id: emptyRowId(), classId: "" }]);
+
+  const prefilledTeacherRef = useRef("");
+  const prevEditTeacherIdRef = useRef("");
 
   const {
     data: teachersData,
@@ -38,7 +41,12 @@ const TeacherPage = () => {
     isError: teachersError,
     error: teachersErrObj,
     refetch: refetchTeachers,
-  } = useGetTeachersQuery({ status: "approved" });
+  } = useGetTeachersQuery(
+    { status: "approved" },
+    {
+      refetchOnMountOrArgChange: false,
+    }
+  );
 
   const teachers = teachersData?.teachers || [];
 
@@ -48,38 +56,56 @@ const TeacherPage = () => {
     isError: formError,
     error: formErrObj,
     refetch: refetchForm,
-  } = useGetTeacherFormDataQuery(selectedTeacherId, { skip: !selectedTeacherId });
+  } = useGetTeacherFormDataQuery(selectedTeacherId, {
+    skip: !selectedTeacherId,
+    refetchOnMountOrArgChange: false,
+  });
 
   const teacher = formData?.teacher || null;
   const availableClasses = formData?.availableClasses || [];
   const assignedClasses = formData?.assignedClasses || [];
 
   useEffect(() => {
-    setSelectedTeacherId(editTeacherId || "");
+    if (prevEditTeacherIdRef.current !== editTeacherId) {
+      prevEditTeacherIdRef.current = editTeacherId;
+      setSelectedTeacherId(editTeacherId || "");
+      setRows([{ id: emptyRowId(), classId: "" }]);
+      prefilledTeacherRef.current = "";
+    }
   }, [editTeacherId]);
 
   useEffect(() => {
     if (!selectedTeacherId) {
-      setRows([{ id: emptyRowId(), classId: "" }]);
-      return;
-    }
-
-    if (isEditMode) {
-      if (assignedClasses.length > 0) {
-        setRows(
-          assignedClasses.map((c) => ({
-            id: emptyRowId(),
-            classId: c._id,
-          }))
-        );
-      } else {
+      if (rows.length !== 1 || rows[0]?.classId !== "") {
         setRows([{ id: emptyRowId(), classId: "" }]);
       }
+      prefilledTeacherRef.current = "";
       return;
     }
 
-    setRows([{ id: emptyRowId(), classId: "" }]);
-  }, [selectedTeacherId, isEditMode, assignedClasses]);
+    if (!isEditMode) {
+      return;
+    }
+
+    if (!formData) {
+      return;
+    }
+
+    if (prefilledTeacherRef.current === selectedTeacherId) {
+      return;
+    }
+
+    const nextRows =
+      assignedClasses.length > 0
+        ? assignedClasses.map((c) => ({
+            id: emptyRowId(),
+            classId: String(c._id || ""),
+          }))
+        : [{ id: emptyRowId(), classId: "" }];
+
+    setRows(nextRows);
+    prefilledTeacherRef.current = selectedTeacherId;
+  }, [selectedTeacherId, isEditMode, formData]);
 
   const [assignTeacher, { isLoading: assigning }] = useAssignTeacherMutation();
   const [replaceTeacherAssignments, { isLoading: replacing }] =
@@ -87,20 +113,25 @@ const TeacherPage = () => {
 
   const busy = assigning || replacing;
 
-  const selectedClassIds = useMemo(
-    () =>
-      rows
-        .map((r) => String(r.classId || "").trim())
-        .filter(Boolean),
-    [rows]
-  );
+  const availableClassMap = useMemo(() => {
+    return new Map(availableClasses.map((c) => [String(c._id), c]));
+  }, [availableClasses]);
 
-  const uniqueClassIds = Array.from(new Set(selectedClassIds));
+  const selectedClassIds = useMemo(() => {
+    return rows
+      .map((r) => String(r.classId || "").trim())
+      .filter(Boolean);
+  }, [rows]);
+
+  const uniqueClassIds = useMemo(() => {
+    return Array.from(new Set(selectedClassIds));
+  }, [selectedClassIds]);
 
   const selectedClassObjects = useMemo(() => {
-    const map = new Map(availableClasses.map((c) => [String(c._id), c]));
-    return uniqueClassIds.map((id) => map.get(String(id))).filter(Boolean);
-  }, [uniqueClassIds, availableClasses]);
+    return uniqueClassIds
+      .map((id) => availableClassMap.get(String(id)))
+      .filter(Boolean);
+  }, [uniqueClassIds, availableClassMap]);
 
   const addRow = () => {
     setRows((prev) => [...prev, { id: emptyRowId(), classId: "" }]);
@@ -123,11 +154,24 @@ const TeacherPage = () => {
     navigate("/teacher/list");
   };
 
+  const onTeacherChange = (value) => {
+    setSelectedTeacherId(value);
+    prefilledTeacherRef.current = "";
+    setRows([{ id: emptyRowId(), classId: "" }]);
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selectedTeacherId) return alert("Select teacher");
-    if (uniqueClassIds.length === 0) return alert("Select at least one class");
+    if (!selectedTeacherId) {
+      alert("Select teacher");
+      return;
+    }
+
+    if (uniqueClassIds.length === 0) {
+      alert("Select at least one class");
+      return;
+    }
 
     try {
       const payload = { classIds: uniqueClassIds };
@@ -214,7 +258,7 @@ const TeacherPage = () => {
                 <div className="mt-2 flex gap-2">
                   <select
                     value={selectedTeacherId}
-                    onChange={(e) => setSelectedTeacherId(e.target.value)}
+                    onChange={(e) => onTeacherChange(e.target.value)}
                     disabled={isEditMode}
                     className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-50"
                   >
@@ -292,9 +336,7 @@ const TeacherPage = () => {
 
               <div className="space-y-4">
                 {rows.map((row, index) => {
-                  const selectedClass = availableClasses.find(
-                    (c) => String(c._id) === String(row.classId)
-                  );
+                  const selectedClass = availableClassMap.get(String(row.classId));
 
                   return (
                     <div

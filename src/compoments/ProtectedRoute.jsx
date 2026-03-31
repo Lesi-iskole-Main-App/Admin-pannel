@@ -1,4 +1,3 @@
-// src/compoments/ProtectedRoute.jsx
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -15,7 +14,7 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/signin" replace state={{ from: location }} />;
   }
 
-  return children;
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

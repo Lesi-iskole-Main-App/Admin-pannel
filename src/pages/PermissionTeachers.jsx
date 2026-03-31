@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { setSearch } from "../api/features/teacherSlice";
@@ -8,20 +8,93 @@ import {
   useRejectTeacherMutation,
 } from "../api/teacherApi";
 
+const PAGE_SIZE = 18;
+
+const TeacherCard = memo(function TeacherCard({
+  teacher,
+  onApprove,
+  onReject,
+  approving,
+  rejecting,
+}) {
+  return (
+    <div className="border border-gray-200 bg-white">
+      <div className="flex h-full flex-col p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-base font-medium text-gray-900">
+              {teacher.name}
+            </div>
+
+            {!!teacher.email && (
+              <div className="mt-1 truncate text-sm text-gray-600">
+                {teacher.email}
+              </div>
+            )}
+
+            <div className="mt-1 truncate text-sm text-gray-600">
+              {teacher.phonenumber}
+            </div>
+
+            {(teacher.district || teacher.town) && (
+              <div className="mt-2 text-xs text-gray-500">
+                {[teacher.town, teacher.district].filter(Boolean).join(", ")}
+              </div>
+            )}
+          </div>
+
+          <span className="inline-flex items-center rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-700">
+            Pending
+          </span>
+        </div>
+
+        <div className="mt-auto flex justify-end gap-2 pt-5">
+          <button
+            onClick={() => onReject(teacher._id)}
+            disabled={rejecting}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+          >
+            Reject
+          </button>
+
+          <button
+            onClick={() => onApprove(teacher._id)}
+            disabled={approving}
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+          >
+            Approve
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 const PermissionTeachers = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { search } = useSelector((s) => s.teacher);
 
-  const { data, isLoading, isError, error, refetch } = useGetAllUsersQuery();
+  const { data, isLoading, isError, error, refetch } = useGetAllUsersQuery(
+    undefined,
+    {
+      refetchOnMountOrArgChange: false,
+    }
+  );
+
   const [approveTeacher, { isLoading: approving }] = useApproveTeacherMutation();
   const [rejectTeacher, { isLoading: rejecting }] = useRejectTeacherMutation();
 
+  const deferredSearch = useDeferredValue(search);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const pendingTeachers = useMemo(() => {
     const users = Array.isArray(data?.users) ? data.users : [];
+
     let list = users.filter((u) => u.role === "teacher" && !u.isApproved);
 
-    const q = String(search || "").trim().toLowerCase();
+    const q = String(deferredSearch || "").trim().toLowerCase();
+
     if (q) {
       list = list.filter((u) => {
         return (
@@ -35,7 +108,21 @@ const PermissionTeachers = () => {
     }
 
     return list;
-  }, [data, search]);
+  }, [data, deferredSearch]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deferredSearch]);
+
+  const totalRows = pendingTeachers.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedTeachers = useMemo(() => {
+    const start = (safeCurrentPage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    return pendingTeachers.slice(start, end);
+  }, [pendingTeachers, safeCurrentPage]);
 
   const onApprove = async (id) => {
     try {
@@ -130,62 +217,78 @@ const PermissionTeachers = () => {
                 </button>
               </div>
             </div>
-          ) : pendingTeachers.length === 0 ? (
+          ) : totalRows === 0 ? (
             <div className="border border-gray-200 bg-white px-6 py-10 text-center text-gray-500">
               No pending teacher requests
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {pendingTeachers.map((t) => (
-                <div key={t._id} className="border border-gray-200 bg-white">
-                  <div className="flex h-full flex-col p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-medium text-gray-900">
-                          {t.name}
-                        </div>
-                        {!!t.email && (
-                          <div className="mt-1 truncate text-sm text-gray-600">
-                            {t.email}
-                          </div>
-                        )}
-                        <div className="mt-1 truncate text-sm text-gray-600">
-                          {t.phonenumber}
-                        </div>
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {paginatedTeachers.map((t) => (
+                  <TeacherCard
+                    key={t._id}
+                    teacher={t}
+                    onApprove={onApprove}
+                    onReject={onReject}
+                    approving={approving}
+                    rejecting={rejecting}
+                  />
+                ))}
+              </div>
 
-                        {(t.district || t.town) && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            {[t.town, t.district].filter(Boolean).join(", ")}
-                          </div>
-                        )}
-                      </div>
+              <div className="mt-5 flex flex-col gap-3 border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  {(safeCurrentPage - 1) * PAGE_SIZE + 1} to{" "}
+                  {Math.min(safeCurrentPage * PAGE_SIZE, totalRows)} of {totalRows}
+                </span>
 
-                      <span className="inline-flex items-center rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-700">
-                        Pending
-                      </span>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safeCurrentPage === 1}
+                    className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {"<<"}
+                  </button>
 
-                    <div className="mt-auto flex justify-end gap-2 pt-5">
-                      <button
-                        onClick={() => onReject(t._id)}
-                        disabled={rejecting}
-                        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
-                      >
-                        Reject
-                      </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.max(1, p - 1))
+                    }
+                    disabled={safeCurrentPage === 1}
+                    className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {"<"}
+                  </button>
 
-                      <button
-                        onClick={() => onApprove(t._id)}
-                        disabled={approving}
-                        className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
-                      >
-                        Approve
-                      </button>
-                    </div>
-                  </div>
+                  <span className="px-2 text-sm font-medium text-gray-700">
+                    Page {safeCurrentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={safeCurrentPage === totalPages}
+                    className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {">"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safeCurrentPage === totalPages}
+                    className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {">>"}
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>

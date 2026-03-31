@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useGetTeachersQuery,
@@ -8,7 +8,7 @@ import {
 
 const ROWS_PER_PAGE = 20;
 
-const ModalShell = ({ title, onClose, children }) => {
+const ModalShell = memo(({ title, onClose, children }) => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div
@@ -32,9 +32,9 @@ const ModalShell = ({ title, onClose, children }) => {
       </div>
     </div>
   );
-};
+});
 
-const IconButton = ({ onClick, title, children, disabled = false }) => {
+const IconButton = memo(({ onClick, title, children, disabled = false }) => {
   return (
     <button
       type="button"
@@ -46,20 +46,22 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
       {children}
     </button>
   );
-};
+});
 
 const ViewTeacherPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const viewAssignTeacherId = searchParams.get("viewAssignTeacherId");
+  const viewAssignTeacherId = searchParams.get("viewAssignTeacherId") || "";
 
-  const { data, isLoading, isError, error, refetch } = useGetTeachersQuery({
-    status: "all",
-  });
+  const { data, isLoading, isError, error, refetch } = useGetTeachersQuery(
+    { status: "all" },
+    {
+      refetchOnMountOrArgChange: false,
+    }
+  );
 
   const teachers = useMemo(() => data?.teachers || [], [data]);
-
   const [currentPage, setCurrentPage] = useState(1);
 
   const {
@@ -70,11 +72,8 @@ const ViewTeacherPage = () => {
     refetch: refetchModal,
   } = useGetTeacherFormDataQuery(viewAssignTeacherId, {
     skip: !viewAssignTeacherId,
+    refetchOnMountOrArgChange: false,
   });
-
-  useEffect(() => {
-    if (viewAssignTeacherId) refetchModal();
-  }, [viewAssignTeacherId, refetchModal]);
 
   const modalTeacher = formData?.teacher || null;
   const assignedClasses = formData?.assignedClasses || [];
@@ -138,19 +137,18 @@ const ViewTeacherPage = () => {
   const totalRows = rows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
 
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
+  const safeCurrentPage = Math.min(currentPage, totalPages);
 
   const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * ROWS_PER_PAGE;
+    const start = (safeCurrentPage - 1) * ROWS_PER_PAGE;
     const end = start + ROWS_PER_PAGE;
     return rows.slice(start, end);
-  }, [rows, currentPage]);
+  }, [rows, safeCurrentPage]);
 
-  const startRecord = totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const startRecord =
+    totalRows === 0 ? 0 : (safeCurrentPage - 1) * ROWS_PER_PAGE + 1;
   const endRecord =
-    totalRows === 0 ? 0 : Math.min(currentPage * ROWS_PER_PAGE, totalRows);
+    totalRows === 0 ? 0 : Math.min(safeCurrentPage * ROWS_PER_PAGE, totalRows);
 
   const goToFirstPage = () => setCurrentPage(1);
   const goToPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
@@ -326,7 +324,7 @@ const ViewTeacherPage = () => {
               <button
                 type="button"
                 onClick={goToFirstPage}
-                disabled={currentPage === 1 || totalRows === 0}
+                disabled={safeCurrentPage === 1 || totalRows === 0}
                 className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 {"<<"}
@@ -335,20 +333,20 @@ const ViewTeacherPage = () => {
               <button
                 type="button"
                 onClick={goToPrevPage}
-                disabled={currentPage === 1 || totalRows === 0}
+                disabled={safeCurrentPage === 1 || totalRows === 0}
                 className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 {"<"}
               </button>
 
               <span className="px-2 text-sm font-medium text-gray-700">
-                Page {currentPage} of {totalPages}
+                Page {safeCurrentPage} of {totalPages}
               </span>
 
               <button
                 type="button"
                 onClick={goToNextPage}
-                disabled={currentPage === totalPages || totalRows === 0}
+                disabled={safeCurrentPage === totalPages || totalRows === 0}
                 className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 {">"}
@@ -357,7 +355,7 @@ const ViewTeacherPage = () => {
               <button
                 type="button"
                 onClick={goToLastPage}
-                disabled={currentPage === totalPages || totalRows === 0}
+                disabled={safeCurrentPage === totalPages || totalRows === 0}
                 className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 {">>"}

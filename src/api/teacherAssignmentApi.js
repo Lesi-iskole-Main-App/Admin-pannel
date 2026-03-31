@@ -17,6 +17,9 @@ export const teacherAssignmentApi = createApi({
       return headers;
     },
   }),
+  keepUnusedDataFor: 300,
+  refetchOnFocus: false,
+  refetchOnReconnect: true,
   tagTypes: ["Teachers", "TeacherFormData"],
   endpoints: (builder) => ({
     getTeachers: builder.query({
@@ -37,7 +40,6 @@ export const teacherAssignmentApi = createApi({
       ],
     }),
 
-    // append classes
     assignTeacher: builder.mutation({
       query: ({ teacherId, body }) => ({
         url: `/${teacherId}/assign`,
@@ -50,7 +52,6 @@ export const teacherAssignmentApi = createApi({
       ],
     }),
 
-    // replace all classes
     replaceTeacherAssignments: builder.mutation({
       query: ({ teacherId, body }) => ({
         url: `/${teacherId}/assign`,
@@ -69,7 +70,11 @@ export const teacherAssignmentApi = createApi({
         method: "PATCH",
         body: { isActive },
       }),
-      invalidatesTags: [{ type: "Teachers", id: "LIST" }],
+      invalidatesTags: (result, error, { teacherId }) => [
+        { type: "Teachers", id: "LIST" },
+        { type: "Teachers", id: teacherId },
+        { type: "TeacherFormData", id: teacherId },
+      ],
     }),
   }),
 });

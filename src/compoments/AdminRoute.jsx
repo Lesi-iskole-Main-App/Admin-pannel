@@ -1,4 +1,3 @@
-// src/compoments/AdminRoute.jsx
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -28,8 +27,8 @@ export default function AdminRoute({ children }) {
   }
 
   if (user?.role !== "admin") {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/home" replace state={{ from: location }} />;
   }
 
-  return children;
+  return <>{children}</>;
 }

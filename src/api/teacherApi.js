@@ -11,10 +11,14 @@ export const teacherApi = createApi({
       const reduxToken = getState()?.auth?.token;
       const storageToken = localStorage.getItem("token");
       const token = reduxToken || storageToken;
+
       if (token) headers.set("Authorization", `Bearer ${token}`);
       return headers;
     },
   }),
+  keepUnusedDataFor: 300,
+  refetchOnFocus: false,
+  refetchOnReconnect: true,
   tagTypes: ["Teachers"],
   endpoints: (builder) => ({
     getAllUsers: builder.query({

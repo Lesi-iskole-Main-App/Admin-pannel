@@ -97,12 +97,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             }
           >
             <Route index element={<Navigate to="/student/list" replace />} />
-            <Route path="list" element={<StudentsPage />} />
+            <Route path="list" element={<StudentsPage key="student-list" />} />
             <Route
               path="permission"
               element={
                 <AdminRoute>
-                  <PermissionStudents />
+                  <PermissionStudents key="student-permission" />
                 </AdminRoute>
               }
             />
@@ -117,17 +117,17 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             }
           >
             <Route index element={<Navigate to="/paper/papers" replace />} />
-            <Route path="papers" element={<PapersPage />} />
-            <Route path="view" element={<ViewPaperPage />} />
+            <Route path="papers" element={<PapersPage key="paper-papers" />} />
+            <Route path="view" element={<ViewPaperPage key="paper-view" />} />
             <Route
               path=":paperId/questions/create"
-              element={<CreatePaperQuestionsPage />}
+              element={<CreatePaperQuestionsPage key="paper-create-question" />}
             />
             <Route
               path=":paperId/questions/view"
-              element={<ViewPaperQuestionsPage />}
+              element={<ViewPaperQuestionsPage key="paper-view-question" />}
             />
-            <Route path="question" element={<QuestionPage />} />
+            <Route path="question" element={<QuestionPage key="paper-question" />} />
           </Route>
 
           <Route
@@ -139,13 +139,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             }
           >
             <Route index element={<Navigate to="/teacher/list" replace />} />
-            <Route path="list" element={<TeacherPage />} />
-            <Route path="view" element={<ViewTeacherPage />} />
+            <Route path="list" element={<TeacherPage key="teacher-list" />} />
+            <Route path="view" element={<ViewTeacherPage key="teacher-view" />} />
             <Route
               path="permission"
               element={
                 <AdminRoute>
-                  <PermissonTeachers />
+                  <PermissonTeachers key="teacher-permission" />
                 </AdminRoute>
               }
             />
@@ -160,13 +160,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             }
           >
             <Route index element={<Navigate to="/lms/list" replace />} />
-            <Route path="list" element={<LMSPage />} />
+            <Route path="list" element={<LMSPage key="lms-list" />} />
 
             <Route
               path="class"
               element={
                 <AdminRoute>
-                  <ClassPage />
+                  <ClassPage key="lms-class" />
                 </AdminRoute>
               }
             />
@@ -175,7 +175,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               path="live"
               element={
                 <AdminRoute>
-                  <LivePage />
+                  <LivePage key="lms-live" />
                 </AdminRoute>
               }
             />
@@ -184,7 +184,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               path="recording"
               element={
                 <AdminRoute>
-                  <RecordingPage />
+                  <RecordingPage key="lms-recording" />
                 </AdminRoute>
               }
             />
