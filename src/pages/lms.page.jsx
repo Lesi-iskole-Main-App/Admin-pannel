@@ -1,803 +1,253 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-
+import React, { useMemo, useState } from "react";
+import { useGetAllClassesQuery } from "../api/classApi";
 import {
-  useGetAllLessonsQuery,
-  useCreateLessonMutation,
-  useUpdateLessonByIdMutation,
-  useDeleteLessonByIdMutation,
+  useGetCatalogAdminQuery, useAddCatalogVideoMutation,
+  useEditCatalogVideoMutation, useArchiveCatalogVideoMutation,
+  useRenameCatalogLessonMutation, useRenameCatalogSubMutation,
+  useReorderCatalogMutation,
 } from "../api/lessonApi";
 
-import { useGetAllClassesQuery } from "../api/classApi";
-
-const ROWS_PER_PAGE = 20;
-
-const ModalShell = ({ title, onClose, children }) => {
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-        role="button"
-        tabIndex={-1}
-      />
-      <div className="relative w-[95vw] max-w-[820px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-        <div className="flex items-center justify-between border-b border-gray-200 bg-[#F8FAFC] px-4 py-4 sm:px-6">
-          <div className="text-base font-semibold text-gray-800">{title}</div>
-          <button
-            type="button"
-            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-        <div className="p-4 sm:p-6">{children}</div>
-      </div>
-    </div>
-  );
+const field = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500";
+const blue = "rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40";
+const small = "rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-40";
+const keyOf = (item) => String(item.key ?? item._id);
+const displayError = (problem) => {
+  if (problem?.status === 401 || problem?.status === 403) {
+    return "Your admin session has expired or this account cannot edit lessons. Sign in with an admin account and retry.";
+  }
+  return problem?.data?.message || problem?.error || "Could not load lessons. Please retry.";
 };
 
-const IconButton = ({ onClick, title, children, disabled = false }) => {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      disabled={disabled}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-};
+export default function LMSPage() {
+  const [classId, setClassId] = useState("");
+  const [lessonChoice, setLessonChoice] = useState("new");
+  const [subChoice, setSubChoice] = useState("new");
+  const [lessonTitle, setLessonTitle] = useState("");
+  const [subTitle, setSubTitle] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [watchStart, setWatchStart] = useState("");
+  const [watchEnd, setWatchEnd] = useState("");
+  const [rangeEdits, setRangeEdits] = useState({});
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
 
-const LMSPage = () => {
-  const navigate = useNavigate();
-
-  const {
-    data: lessonsRes,
-    isLoading: lessonsLoading,
-    isError: lessonsError,
-  } = useGetAllLessonsQuery();
-
-  const {
-    data: classesRes,
-    isLoading: classesLoading,
-    isError: classesError,
-  } = useGetAllClassesQuery();
-
-  const [createLesson, { isLoading: isCreating }] = useCreateLessonMutation();
-  const [updateLessonById, { isLoading: isUpdating }] =
-    useUpdateLessonByIdMutation();
-  const [deleteLessonById, { isLoading: isDeleting }] =
-    useDeleteLessonByIdMutation();
-
+  const { data: classesRes, isLoading: classesLoading, error: classesError,
+    refetch: refetchClasses } = useGetAllClassesQuery();
+  const { data, isLoading, isError, error: catalogError, refetch } =
+    useGetCatalogAdminQuery(classId, { skip: !classId, refetchOnMountOrArgChange: true });
   const classes = classesRes?.classes || [];
-  const lessons = lessonsRes?.lessons || [];
+  const lessons = data?.lessons || [];
+  const selectedLesson = lessons.find((g) => g.key === lessonChoice);
+  const selectableSubs = selectedLesson?.sublessons || [];
+  const allSubs = useMemo(() => lessons.flatMap((g) => g.sublessons.map((s) => ({
+    lessonKey: g.key, subKey: s.key, label: `${g.title} / ${s.title}`,
+  }))), [lessons]);
 
-  const [modal, setModal] = useState({
-    open: false,
-    mode: "create",
-    lessonId: null,
-  });
+  const [addVideo] = useAddCatalogVideoMutation();
+  const [editVideo] = useEditCatalogVideoMutation();
+  const [archiveVideo] = useArchiveCatalogVideoMutation();
+  const [renameLesson] = useRenameCatalogLessonMutation();
+  const [renameSub] = useRenameCatalogSubMutation();
+  const [reorder] = useReorderCatalogMutation();
 
-  const openCreate = () =>
-    setModal({ open: true, mode: "create", lessonId: null });
-
-  const openEdit = (lesson) =>
-    setModal({ open: true, mode: "edit", lessonId: lesson?._id || null });
-
-  const closeModal = () =>
-    setModal({ open: false, mode: "create", lessonId: null });
-
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const [form, setForm] = useState({
-    classId: "",
-    batchNumber: "",
-    grade: "",
-    stream: "",
-    subject: "",
-    youtubeUrl: "",
-    title: "",
-    description: "",
-    date: "",
-    time: "",
-  });
-
-  const selectedClass = useMemo(() => {
-    return classes.find((c) => String(c?._id) === String(form.classId));
-  }, [classes, form.classId]);
-
-  const autoInfo = useMemo(() => {
-    if (!selectedClass) {
-      return { batchNumber: "", grade: "", stream: "", subject: "" };
+  const run = async (request, done, successText = "Saved") => {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await request.unwrap();
+      const refreshed = await refetch();
+      if (done) done();
+      if (refreshed?.error) {
+        setError(`Saved, but the list could not refresh. ${displayError(refreshed.error)}`);
+      } else {
+        setNotice(successText);
+      }
+    } catch (e) {
+      setError(displayError(e));
+    } finally { setBusy(false); }
+  };
+  const move = (kind, group, sub, rows, index, step) => {
+    const next = index + step;
+    if (next < 0 || next >= rows.length) return;
+    const keys = rows.map(keyOf);
+    [keys[index], keys[next]] = [keys[next], keys[index]];
+    run(reorder({ kind, classId, lessonKey: group?.key, subKey: sub?.key, keys }), null, "Order updated");
+  };
+  const promptName = (current, save) => {
+    const title = window.prompt("New name", current);
+    if (title !== null && title.trim() && title.trim() !== current) save(title.trim());
+  };
+  const createVideo = (event) => {
+    event.preventDefault();
+    if (!classId || !youtubeUrl.trim()) return;
+    if (Boolean(watchStart) !== Boolean(watchEnd) || (watchStart && watchStart > watchEnd)) {
+      setError("Select both From and To dates, or leave both empty."); return;
     }
-
-    const gradeNo =
-      selectedClass?.gradeNo ||
-      selectedClass?.gradeId?.grade ||
-      selectedClass?.grade ||
-      "";
-
-    const grade =
-      selectedClass?.gradeLabel ||
-      (gradeNo === 12 || gradeNo === 13
-        ? "A/L"
-        : gradeNo
-        ? `Grade ${gradeNo}`
-        : "");
-
-    const stream =
-      Array.isArray(selectedClass?.streamNames) &&
-      selectedClass.streamNames.length > 0
-        ? selectedClass.streamNames.join(", ")
-        : selectedClass?.streamName || selectedClass?.stream || "";
-
-    const subject = selectedClass?.subjectName || selectedClass?.subject || "";
-    const batchNumber = selectedClass?.batchNumber || "";
-
-    return { batchNumber, grade, stream, subject };
-  }, [selectedClass]);
-
-  useEffect(() => {
-    if (!form.classId) {
-      setForm((p) => ({
-        ...p,
-        batchNumber: "",
-        grade: "",
-        stream: "",
-        subject: "",
-      }));
-      return;
-    }
-
-    setForm((p) => ({
-      ...p,
-      batchNumber: autoInfo.batchNumber,
-      grade: autoInfo.grade,
-      stream: autoInfo.stream,
-      subject: autoInfo.subject,
+    const body = {
+      classId, youtubeUrl: youtubeUrl.trim(), watchStart, watchEnd,
+      ...(lessonChoice === "new" ? { lessonTitle: lessonTitle.trim() } : { lessonKey: lessonChoice }),
+      ...(lessonChoice === "new" || subChoice === "new"
+        ? { subTitle: subTitle.trim() } : { subKey: subChoice }),
+    };
+    run(addVideo(body), () => {
+      setYoutubeUrl(""); setWatchStart(""); setWatchEnd("");
+      if (lessonChoice === "new") setLessonTitle("");
+      if (subChoice === "new" || lessonChoice === "new") setSubTitle("");
+    }, "Video assigned");
+  };
+  const updateRange = (id, video, fieldName, value) => {
+    setRangeEdits((old) => ({ ...old,
+      [id]: { watchStart: old[id]?.watchStart ?? video.watchStart,
+        watchEnd: old[id]?.watchEnd ?? video.watchEnd, [fieldName]: value },
     }));
-  }, [
-    form.classId,
-    autoInfo.batchNumber,
-    autoInfo.grade,
-    autoInfo.stream,
-    autoInfo.subject,
-  ]);
-
-  useEffect(() => {
-    if (!modal.open) return;
-    if (modal.mode === "create") {
-      setForm({
-        classId: "",
-        batchNumber: "",
-        grade: "",
-        stream: "",
-        subject: "",
-        youtubeUrl: "",
-        title: "",
-        description: "",
-        date: "",
-        time: "",
-      });
+  };
+  const saveRange = (video) => {
+    const id = String(video._id);
+    const dates = rangeEdits[id] || { watchStart: video.watchStart, watchEnd: video.watchEnd };
+    if (Boolean(dates.watchStart) !== Boolean(dates.watchEnd) ||
+        (dates.watchStart && dates.watchStart > dates.watchEnd)) {
+      setError("Select a valid From–To date range."); return;
     }
-  }, [modal.open, modal.mode]);
-
-  useEffect(() => {
-    if (!modal.open || modal.mode !== "edit") return;
-
-    const lesson = lessons.find(
-      (l) => String(l?._id) === String(modal.lessonId)
-    );
-    if (!lesson) return;
-
-    const classId = lesson?.classId || "";
-
-    const grade =
-      lesson?.classDetails?.grade === 12 || lesson?.classDetails?.grade === 13
-        ? "A/L"
-        : lesson?.classDetails?.grade
-        ? `Grade ${lesson.classDetails.grade}`
-        : lesson?.classDetails?.gradeLabel || "";
-
-    const stream =
-      Array.isArray(lesson?.classDetails?.streams) &&
-      lesson.classDetails.streams.length > 0
-        ? lesson.classDetails.streams.join(", ")
-        : lesson?.classDetails?.stream || "";
-
-    const subject = lesson?.classDetails?.subject || "";
-    const batchNumber = lesson?.classDetails?.batchNumber || "";
-
-    setForm({
-      classId,
-      batchNumber,
-      grade,
-      stream,
-      subject,
-      youtubeUrl: lesson?.youtubeUrl || "",
-      title: lesson?.title || "",
-      description: lesson?.description || "",
-      date: lesson?.date || "",
-      time: lesson?.time || "",
-    });
-  }, [modal.open, modal.mode, modal.lessonId, lessons]);
-
-  const rows = useMemo(() => {
-    return lessons.map((l) => {
-      const className = l?.classDetails?.className || "—";
-      const grade =
-        l?.classDetails?.grade === 12 || l?.classDetails?.grade === 13
-          ? "A/L"
-          : l?.classDetails?.grade
-          ? `Grade ${l.classDetails.grade}`
-          : l?.classDetails?.gradeLabel || "—";
-
-      const stream =
-        Array.isArray(l?.classDetails?.streams) &&
-        l.classDetails.streams.length > 0
-          ? l.classDetails.streams.join(", ")
-          : l?.classDetails?.stream || "—";
-
-      const subject = l?.classDetails?.subject || "—";
-      const batchNumber = l?.classDetails?.batchNumber || "—";
-
-      return {
-        _id: l._id,
-        className,
-        batchNumber,
-        grade,
-        stream,
-        subject,
-        youtubeUrl: l.youtubeUrl || "",
-        lessonName: l.title || "—",
-        description: l.description || "—",
-        date: l.date || "—",
-        time: l.time || "—",
-        raw: l,
-      };
-    });
-  }, [lessons]);
-
-  const totalRows = rows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
-
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * ROWS_PER_PAGE;
-    const end = start + ROWS_PER_PAGE;
-    return rows.slice(start, end);
-  }, [rows, currentPage]);
-
-  const startRecord =
-    totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
-  const endRecord =
-    totalRows === 0 ? 0 : Math.min(currentPage * ROWS_PER_PAGE, totalRows);
-
-  const goToFirstPage = () => setCurrentPage(1);
-  const goToPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
-  const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
-  const goToLastPage = () => setCurrentPage(totalPages);
-
-  const validate = () => {
-    if (!form.classId) {
-      alert("Class is required");
-      return false;
-    }
-    if (!form.title.trim()) {
-      alert("Lesson title is required");
-      return false;
-    }
-    if (!form.youtubeUrl.trim()) {
-      alert("YouTube URL is required");
-      return false;
-    }
-    if (!form.date.trim()) {
-      alert("Date is required");
-      return false;
-    }
-    if (!form.time.trim()) {
-      alert("Time is required");
-      return false;
-    }
-    return true;
+    run(editVideo({ id, body: dates }), () => setRangeEdits((old) => {
+      const copy = { ...old }; delete copy[id]; return copy;
+    }), "This Week button schedule updated");
   };
 
-  const buildPayload = () => ({
-    classId: form.classId,
-    youtubeUrl: form.youtubeUrl.trim(),
-    title: form.title.trim(),
-    description: form.description.trim(),
-    date: form.date,
-    time: form.time,
-  });
-
-  const submitCreate = async () => {
-    if (!validate()) return;
-
-    try {
-      await createLesson(buildPayload()).unwrap();
-      closeModal();
-      setCurrentPage(1);
-    } catch (e) {
-      alert(e?.data?.message || "Create failed");
-    }
-  };
-
-  const submitUpdate = async () => {
-    if (!validate()) return;
-    if (!modal.lessonId) return;
-
-    try {
-      await updateLessonById({
-        lessonId: modal.lessonId,
-        body: buildPayload(),
-      }).unwrap();
-      closeModal();
-    } catch (e) {
-      alert(e?.data?.message || "Update failed");
-    }
-  };
-
-  const removeLesson = async (lessonId) => {
-    if (!window.confirm("Delete this lesson?")) return;
-
-    try {
-      await deleteLessonById(lessonId).unwrap();
-    } catch (e) {
-      alert(e?.data?.message || "Delete failed");
-    }
-  };
-
-  return (
-    <div className="flex w-full justify-center">
-      <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-              LMS Lesson Management
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Manage lessons, YouTube links, dates, and times.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
-              onClick={openCreate}
-            >
-              + Add Lesson
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/home")}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 hover:text-red-700"
-              title="Home"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 10.5 12 3l9 7.5" />
-                <path d="M5 9.5V21h14V9.5" />
-                <path d="M9 21v-6h6v6" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {modal.open && (
-          <ModalShell
-            title={modal.mode === "create" ? "Create Lesson" : "Update Lesson"}
-            onClose={closeModal}
-          >
-            {classesLoading ? (
-              <div className="text-sm text-gray-500">Loading...</div>
-            ) : classesError ? (
-              <div className="text-sm text-red-600">Failed to load classes</div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Class
-                  </label>
-                  <select
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.classId}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, classId: e.target.value }))
-                    }
-                  >
-                    <option value="">Select Class</option>
-                    {classes.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.className}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Batch Number
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={form.batchNumber}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Grade
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={form.grade}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Stream
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={form.stream}
-                      disabled
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Subject
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm outline-none"
-                      value={form.subject}
-                      disabled
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Lesson Title
-                  </label>
-                  <input
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, title: e.target.value }))
-                    }
-                    placeholder="Enter lesson title"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    YouTube URL
-                  </label>
-                  <input
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.youtubeUrl}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, youtubeUrl: e.target.value }))
-                    }
-                    placeholder="https://youtube.com/..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Description
-                  </label>
-                  <textarea
-                    rows={4}
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, description: e.target.value }))
-                    }
-                    placeholder="Enter lesson description"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.date}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, date: e.target.value }))
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Time
-                    </label>
-                    <input
-                      type="time"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.time}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, time: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                    onClick={closeModal}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                    onClick={modal.mode === "create" ? submitCreate : submitUpdate}
-                    disabled={isCreating || isUpdating}
-                  >
-                    {modal.mode === "create"
-                      ? isCreating
-                        ? "Creating..."
-                        : "Create"
-                      : isUpdating
-                      ? "Updating..."
-                      : "Update"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </ModalShell>
-        )}
-
-        <div className="mt-5 overflow-hidden border border-gray-200 bg-white">
-          <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1500px] table-fixed border-separate border-spacing-0">
-              <thead>
-                <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Class
-                  </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Batch
-                  </th>
-                  <th className="w-[9%] border-b border-r border-gray-200 px-4 py-3">
-                    Grade
-                  </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Stream
-                  </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Subject
-                  </th>
-                  <th className="w-[13%] border-b border-r border-gray-200 px-4 py-3">
-                    Lesson Name
-                  </th>
-                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
-                    YouTube URL
-                  </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Description
-                  </th>
-                  <th className="w-[5%] border-b border-r border-gray-200 px-4 py-3">
-                    Date
-                  </th>
-                  <th className="w-[5%] border-b border-r border-gray-200 px-4 py-3">
-                    Time
-                  </th>
-                  <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">
-                    Operation
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="bg-white text-sm text-gray-700">
-                {lessonsLoading ? (
-                  <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : lessonsError ? (
-                  <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-red-600">
-                      Failed to load lessons
-                    </td>
-                  </tr>
-                ) : totalRows === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                      No lessons found
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedRows.map((r) => (
-                    <tr key={r._id} className="hover:bg-gray-50/70">
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate font-medium text-gray-800">
-                          {r.className}
-                        </div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.batchNumber}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.grade}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.stream}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.subject}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.lessonName}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        {r.youtubeUrl ? (
-                          <a
-                            href={r.youtubeUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="truncate font-medium text-blue-600 hover:underline"
-                          >
-                            Open Link
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="line-clamp-2">{r.description}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.date}</div>
-                      </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.time}</div>
-                      </td>
-
-                      <td className="border-b border-gray-200 px-4 py-4 align-middle">
-                        <div className="flex items-center justify-center gap-2">
-                          <IconButton
-                            title="Update"
-                            onClick={() => openEdit(r.raw)}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                            </svg>
-                          </IconButton>
-
-                          <IconButton
-                            title="Delete"
-                            onClick={() => removeLesson(r._id)}
-                            disabled={isDeleting}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </IconButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              {startRecord} to {endRecord} of {totalRows}
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={goToFirstPage}
-                disabled={currentPage === 1 || totalRows === 0}
-                className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {"<<"}
-              </button>
-
-              <button
-                type="button"
-                onClick={goToPrevPage}
-                disabled={currentPage === 1 || totalRows === 0}
-                className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {"<"}
-              </button>
-
-              <span className="px-2 text-sm font-medium text-gray-700">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              <button
-                type="button"
-                onClick={goToNextPage}
-                disabled={currentPage === totalPages || totalRows === 0}
-                className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {">"}
-              </button>
-
-              <button
-                type="button"
-                onClick={goToLastPage}
-                disabled={currentPage === totalPages || totalRows === 0}
-                className="inline-flex h-7 min-w-[28px] items-center justify-center rounded border border-gray-200 px-2 text-gray-500 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {">>"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+  return <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 text-slate-900">
+    <div>
+      <h1 className="text-2xl font-bold">Lessons / Sub-lessons / Videos</h1>
+      <p className="text-sm text-slate-600">Set an inclusive From–To date range for each video (Sri Lanka calendar dates). Students see the This Week popup button while the range is active.</p>
     </div>
-  );
-};
-
-export default LMSPage;
+    <label className="flex max-w-xl flex-col gap-2 text-sm font-semibold">Class
+      <select className={field} value={classId} disabled={classesLoading || busy} onChange={(e) => {
+        setClassId(e.target.value); setLessonChoice("new"); setSubChoice("new");
+        setError(""); setNotice("");
+      }}>
+        <option value="">Select a class</option>
+        {classes.map((c) => <option key={c._id} value={c._id}>
+          {c.className} · {c.subjectName || c.alSubjectName || c.subject || "Subject"} · {c.batchNumber || ""}
+        </option>)}
+      </select>
+    </label>
+    {classesError && <div role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">
+      {displayError(classesError)} <button type="button" className={small}
+        onClick={() => refetchClasses()}>Retry classes</button>
+    </div>}
+    {error && <div role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</div>}
+    {notice && <div role="status" className="rounded-lg bg-green-50 p-3 text-green-700">{notice}</div>}
+    {classId && <form onSubmit={createVideo} className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2">
+      <h2 className="sm:col-span-2 text-lg font-bold">Assign a video</h2>
+      <label className="flex flex-col gap-1 text-sm">Lesson
+        <select className={field} value={lessonChoice} disabled={busy} onChange={(e) => {
+          setLessonChoice(e.target.value); setSubChoice("new");
+        }}>
+          <option value="new">+ New lesson</option>
+          {lessons.map((g) => <option key={g.key} value={g.key}>{g.title}</option>)}
+        </select>
+      </label>
+      {lessonChoice === "new" && <label className="flex flex-col gap-1 text-sm">New lesson name
+        <input className={field} value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} required />
+      </label>}
+      {lessonChoice !== "new" && <span className="hidden sm:block" />}
+      <label className="flex flex-col gap-1 text-sm">Sub-lesson
+        <select className={field} value={subChoice} disabled={busy || lessonChoice === "new"}
+          onChange={(e) => setSubChoice(e.target.value)}>
+          <option value="new">+ New sub-lesson</option>
+          {selectableSubs.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
+        </select>
+      </label>
+      {(lessonChoice === "new" || subChoice === "new") &&
+        <label className="flex flex-col gap-1 text-sm">New sub-lesson name
+          <input className={field} value={subTitle} onChange={(e) => setSubTitle(e.target.value)} required />
+        </label>}
+      <label className="sm:col-span-2 flex flex-col gap-1 text-sm">Video URL
+        <input type="url" className={field} value={youtubeUrl}
+          onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtu.be/..." required />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">Show This Week from
+        <input type="date" className={field} value={watchStart}
+          onChange={(e) => setWatchStart(e.target.value)} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">Show This Week until
+        <input type="date" className={field} value={watchEnd}
+          onChange={(e) => setWatchEnd(e.target.value)} />
+      </label>
+      <button type="submit" disabled={busy} className={`${blue} sm:col-span-2`}>+ Assign video</button>
+    </form>}
+    {classId && isLoading && <p>Loading lessons…</p>}
+    {classId && isError && <div role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">
+      {displayError(catalogError)} <button type="button" className={small}
+        onClick={() => refetch()}>Retry lessons</button>
+    </div>}
+    {classId && data && lessons.length === 0 && <p className="rounded-xl border p-4">No videos assigned yet.</p>}
+    {lessons.map((group, gi) => <section key={group.key} className="space-y-3 rounded-xl border border-blue-100 bg-white p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700">Lesson {gi + 1}</span>
+        <h2 className="min-w-0 flex-1 text-lg font-bold">{group.title}</h2>
+        {group.mustWatch && <span className="rounded-full bg-orange-500 px-3 py-1 text-sm font-bold text-white">This Week</span>}
+        <button className={small} disabled={busy || gi === 0} onClick={() => move("lessons", null, null, lessons, gi, -1)}>↑</button>
+        <button className={small} disabled={busy || gi === lessons.length - 1} onClick={() => move("lessons", null, null, lessons, gi, 1)}>↓</button>
+        <button className={small} disabled={busy} onClick={() => promptName(group.title, (title) =>
+          run(renameLesson({ classId, lessonKey: group.key, title })))}>Rename</button>
+      </div>
+      {group.sublessons.map((sub, si) => <div key={sub.key} className="space-y-3 rounded-lg border bg-slate-50 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-bold text-blue-600">{si + 1}.</span>
+          <h3 className="min-w-0 flex-1 font-semibold">{sub.title}</h3>
+          {sub.mustWatch && <span className="text-sm font-bold text-orange-600">This Week</span>}
+          <button className={small} disabled={busy || si === 0} onClick={() => move("sublessons", group, null, group.sublessons, si, -1)}>↑</button>
+          <button className={small} disabled={busy || si === group.sublessons.length - 1} onClick={() => move("sublessons", group, null, group.sublessons, si, 1)}>↓</button>
+          <button className={small} disabled={busy} onClick={() => promptName(sub.title, (title) =>
+            run(renameSub({ classId, lessonKey: group.key, subKey: sub.key, title })))}>Rename</button>
+        </div>
+        {sub.videos.map((video, vi) => {
+          const id = String(video._id);
+          const dates = rangeEdits[id] || { watchStart: video.watchStart, watchEnd: video.watchEnd };
+          return <div key={id} className="space-y-2 rounded-lg border bg-white p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>Video {vi + 1}</strong>
+              <a className="min-w-0 flex-1 truncate text-blue-700 underline" href={video.youtubeUrl}
+                target="_blank" rel="noreferrer">{video.youtubeUrl}</a>
+              {video.mustWatch && <span className="rounded-full bg-orange-500 px-2 py-1 font-bold text-white">This Week</span>}
+              <button className={small} disabled={busy || vi === 0} onClick={() => move("videos", group, sub, sub.videos, vi, -1)}>↑</button>
+              <button className={small} disabled={busy || vi === sub.videos.length - 1} onClick={() => move("videos", group, sub, sub.videos, vi, 1)}>↓</button>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1">From
+                <input type="date" className={field} value={dates.watchStart || ""}
+                  onChange={(e) => updateRange(id, video, "watchStart", e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1">Until
+                <input type="date" className={field} value={dates.watchEnd || ""}
+                  onChange={(e) => updateRange(id, video, "watchEnd", e.target.value)} />
+              </label>
+              <button className={blue} disabled={busy} onClick={() => saveRange(video)}>Save range</button>
+              <button className={small} disabled={busy} onClick={() => run(editVideo({ id,
+                body: { watchStart: "", watchEnd: "" } }), () => setRangeEdits((old) => {
+                  const copy = { ...old }; delete copy[id]; return copy;
+                }), "This Week range cleared")}>Clear</button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex flex-1 flex-col gap-1">Move to lesson / sub-lesson
+                <select className={field} value={`${group.key}|${sub.key}`} disabled={busy}
+                  onChange={(e) => {
+                    const target = allSubs.find((x) => `${x.lessonKey}|${x.subKey}` === e.target.value);
+                    if (target) run(editVideo({ id, body: target }), null, "Video moved");
+                  }}>
+                  {allSubs.map((item) => <option key={`${item.lessonKey}|${item.subKey}`}
+                    value={`${item.lessonKey}|${item.subKey}`}>{item.label}</option>)}
+                </select>
+              </label>
+              <button className={small} disabled={busy} onClick={() => promptName(video.youtubeUrl, (newUrl) =>
+                run(editVideo({ id, body: { youtubeUrl: newUrl } })))}>Edit link</button>
+              <button className={small} disabled={busy} onClick={() => {
+                if (window.confirm("Archive this video?")) run(archiveVideo(id), null, "Video archived");
+              }}>Archive</button>
+            </div>
+          </div>;
+        })}
+      </div>)}
+    </section>)}
+  </main>;
+}

@@ -2,23 +2,72 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
 
+const storedToken = () => {
+  try { return localStorage.getItem("token") || ""; }
+  catch { return ""; }
+};
+
+const request = fetchBaseQuery({
+  baseUrl: `${BACKEND_URL}/api/lesson`,
+  credentials: "include",
+  prepareHeaders: (headers, { getState }) => {
+    const token = storedToken() || getState()?.auth?.token;
+    if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
+    headers.set("Content-Type", "application/json");
+    return headers;
+  },
+});
+
+// A login/refresh can update one token store before the other. Retry an auth
+// rejection once using the other token; never retry a successful mutation.
+const requestWithAuthFallback = async (args, api, extraOptions) => {
+  const tokenSent = storedToken() || api.getState()?.auth?.token || "";
+  const result = await request(args, api, extraOptions);
+  if (result.error?.status !== 401 && result.error?.status !== 403) return result;
+  const currentStorage = storedToken();
+  const currentRedux = api.getState()?.auth?.token || "";
+  const alternate = [currentStorage, currentRedux].find((token) =>
+    token && token !== tokenSent);
+  if (!alternate) return result;
+  const options = typeof args === "string" ? { url: args } : args;
+  return request({ ...options, headers: {
+    ...(options.headers || {}), Authorization: `Bearer ${alternate}`,
+  } }, api, extraOptions);
+};
+
 export const lessonApi = createApi({
   reducerPath: "lessonApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${BACKEND_URL}/api/lesson`,
-    credentials: "include",
-    prepareHeaders: (headers, { getState }) => {
-      const reduxToken = getState()?.auth?.token;
-      const storageToken = localStorage.getItem("token");
-      const token = reduxToken || storageToken;
-
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-      headers.set("Content-Type", "application/json");
-      return headers;
-    },
-  }),
-  tagTypes: ["Lesson"],
+  baseQuery: requestWithAuthFallback,
+  tagTypes: ["Lesson", "Catalog"],
   endpoints: (builder) => ({
+    getCatalogAdmin: builder.query({
+      query: (classId) => `/catalog/admin/class/${classId}`,
+      providesTags: ["Catalog"],
+    }),
+    addCatalogVideo: builder.mutation({
+      query: (body) => ({ url: "/catalog/admin/video", method: "POST", body }),
+      invalidatesTags: ["Catalog", { type: "Lesson", id: "LIST" }],
+    }),
+    editCatalogVideo: builder.mutation({
+      query: ({ id, body }) => ({ url: `/catalog/admin/video/${id}`, method: "PATCH", body }),
+      invalidatesTags: ["Catalog", { type: "Lesson", id: "LIST" }],
+    }),
+    archiveCatalogVideo: builder.mutation({
+      query: (id) => ({ url: `/catalog/admin/video/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Catalog", { type: "Lesson", id: "LIST" }],
+    }),
+    renameCatalogLesson: builder.mutation({
+      query: (body) => ({ url: "/catalog/admin/lesson", method: "PATCH", body }),
+      invalidatesTags: ["Catalog"],
+    }),
+    renameCatalogSub: builder.mutation({
+      query: (body) => ({ url: "/catalog/admin/sublesson", method: "PATCH", body }),
+      invalidatesTags: ["Catalog"],
+    }),
+    reorderCatalog: builder.mutation({
+      query: (body) => ({ url: "/catalog/admin/order", method: "PATCH", body }),
+      invalidatesTags: ["Catalog"],
+    }),
     getAllLessons: builder.query({
       query: () => `/`,
       providesTags: (result) =>
@@ -81,6 +130,13 @@ export const lessonApi = createApi({
 });
 
 export const {
+  useGetCatalogAdminQuery,
+  useAddCatalogVideoMutation,
+  useEditCatalogVideoMutation,
+  useArchiveCatalogVideoMutation,
+  useRenameCatalogLessonMutation,
+  useRenameCatalogSubMutation,
+  useReorderCatalogMutation,
   useGetAllLessonsQuery,
   useGetLessonsByClassIdQuery,
   useGetLessonByIdQuery,

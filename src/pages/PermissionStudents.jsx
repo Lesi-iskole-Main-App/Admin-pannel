@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
   useApproveEnrollMutation,
   useGetPendingEnrollRequestOptionsQuery,
   useGetPendingEnrollRequestsQuery,
   useRejectEnrollMutation,
+  fetchEnrollmentPhotoBlob,
 } from "../api/enrollApi";
 
 const Select = ({ label, value, onChange, options, placeholder = "Select" }) => (
@@ -39,6 +41,7 @@ const Input = ({ label, value, onChange, placeholder = "" }) => (
 
 const PendingRequestCard = ({
   row,
+  onView,
   onApprove,
   onReject,
   approving,
@@ -88,12 +91,24 @@ const PendingRequestCard = ({
         </div>
 
         <div>
+          <span className="font-semibold text-gray-800">Barcode:</span>{" "}
+          {row.barcodeNumber || "-"}
+        </div>
+
+        <div>
           <span className="font-semibold text-gray-800">Requested:</span>{" "}
           {row.createdAt ? new Date(row.createdAt).toLocaleString() : "-"}
         </div>
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => onView(row)}
+          className="mr-auto rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+        >
+          View
+        </button>
         <button
           type="button"
           onClick={() => onReject(row._id)}
@@ -116,6 +131,85 @@ const PendingRequestCard = ({
   );
 };
 
+const RequestDetailsModal = ({ row, token, onClose }) => {
+  const [photos, setPhotos] = useState({});
+  const [photoErrors, setPhotoErrors] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!row) return undefined;
+    const controller = new AbortController();
+    const urls = [];
+    setPhotos({});
+    setPhotoErrors({});
+    setLoading(true);
+
+    const available = [
+      ["application", row.applicationPhotoDriveId],
+      ["packing", row.packingCoverPhotoDriveId],
+    ].filter(([, fileId]) => Boolean(fileId));
+
+    Promise.all(available.map(async ([kind]) => {
+      try {
+        const blob = await fetchEnrollmentPhotoBlob(row._id, kind, token, controller.signal);
+        if (controller.signal.aborted) return;
+        const url = URL.createObjectURL(blob);
+        urls.push(url);
+        setPhotos((previous) => ({ ...previous, [kind]: url }));
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setPhotoErrors((previous) => ({ ...previous, [kind]: error.message }));
+        }
+      }
+    })).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+
+    return () => {
+      controller.abort();
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [row, token]);
+
+  if (!row) return null;
+  const details = row.classDetails || {};
+  const photoItems = [
+    ["application", "Application photo", row.applicationPhotoDriveId],
+    ["packing", "Packing cover image", row.packingCoverPhotoDriveId],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label="Student enrollment request" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="text-lg font-bold text-gray-900">Enrollment request</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg border px-3 py-1 text-gray-700">Close</button>
+        </div>
+        <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+          <div><dt className="font-semibold">Name</dt><dd>{row.studentName || "-"}</dd></div>
+          <div><dt className="font-semibold">Phone number</dt><dd>{row.studentPhone || "-"}</dd></div>
+          <div><dt className="font-semibold">Barcode</dt><dd>{row.barcodeNumber || "-"}</dd></div>
+          <div><dt className="font-semibold">Examination year</dt><dd>{row.examinationYear || "-"}</dd></div>
+          <div><dt className="font-semibold">Class</dt><dd>{details.className || "-"}</dd></div>
+          <div><dt className="font-semibold">Batch</dt><dd>{details.batchNumber || "-"}</dd></div>
+        </dl>
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {photoItems.map(([kind, label, fileId]) => (
+            <div key={kind} className="rounded-xl border p-3">
+              <h3 className="mb-2 font-semibold">{label}</h3>
+              {photos[kind] ? (
+                <img src={photos[kind]} alt={label} className="max-h-[50vh] w-full rounded-lg object-contain" />
+              ) : (
+                <p className="text-sm text-gray-500">{!fileId ? "No image uploaded" : photoErrors[kind] || (loading ? "Loading image..." : "Photo unavailable")}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PageNumberButton = ({ active = false, onClick, children }) => (
   <button
     onClick={onClick}
@@ -131,6 +225,8 @@ const PageNumberButton = ({ active = false, onClick, children }) => (
 
 const PermissionStudents = () => {
   const navigate = useNavigate();
+  const token = useSelector((state) => state?.auth?.token);
+  const [selectedRow, setSelectedRow] = useState(null);
 
   const [filters, setFilters] = useState({
     grade: "",
@@ -174,8 +270,11 @@ const PermissionStudents = () => {
 
   const onApprove = async (id) => {
     try {
-      await approveEnroll(id).unwrap();
+      const result = await approveEnroll(id).unwrap();
       refetch();
+      if (result?.sms?.status === "failed" || result?.sms?.status === "skipped") {
+        alert(`Enrollment approved. SMS ${result.sms.status}: ${result.sms.reason}`);
+      }
     } catch (e) {
       alert(String(e?.data?.message || e?.error || "Approve failed"));
     }
@@ -376,6 +475,7 @@ const PermissionStudents = () => {
                   <PendingRequestCard
                     key={row._id}
                     row={row}
+                    onView={setSelectedRow}
                     onApprove={onApprove}
                     onReject={onReject}
                     approving={approving}
@@ -419,6 +519,7 @@ const PermissionStudents = () => {
           )}
         </div>
       </div>
+      <RequestDetailsModal row={selectedRow} token={token} onClose={() => setSelectedRow(null)} />
     </div>
   );
 };

@@ -1,17 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
 import {
   useGetAllRecordingsQuery,
+  useGetRecordingsByClassIdQuery,
   useCreateRecordingByClassIdMutation,
   useUpdateRecordingByClassIdMutation,
   useDeleteRecordingByClassIdMutation,
+  useReorderRecordingsByClassIdMutation,
 } from "../api/recordingApi";
-
 import { useGetAllClassesQuery } from "../api/classApi";
-
 const ROWS_PER_PAGE = 20;
-
+const recordingOrder = (a, b) => {
+  const left = Number.isInteger(a?.sortOrder) && a.sortOrder >= 0 ? a.sortOrder : null;
+  const right = Number.isInteger(b?.sortOrder) && b.sortOrder >= 0 ? b.sortOrder : null;
+  if (left !== null && right !== null && left !== right) return left - right;
+  if (left === null && right !== null) return -1;
+  if (left !== null && right === null) return 1;
+  const created = new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0);
+  return created || String(a?._id || "").localeCompare(String(b?._id || ""));
+};
+const errorMessage = (error, fallback) =>
+  error?.status === 401 || error?.status === 403
+    ? "Your admin session has expired or this account cannot manage recordings. Sign in as admin and retry."
+    : error?.data?.message || error?.error || fallback;
 const ModalShell = ({ title, onClose, children }) => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
@@ -37,7 +48,6 @@ const ModalShell = ({ title, onClose, children }) => {
     </div>
   );
 };
-
 const IconButton = ({ onClick, title, children, disabled = false }) => {
   return (
     <button
@@ -51,42 +61,48 @@ const IconButton = ({ onClick, title, children, disabled = false }) => {
     </button>
   );
 };
-
 const RecordingPage = () => {
   const navigate = useNavigate();
-
   const {
     data: recordingsRes,
     isLoading: recordingsLoading,
     isError: recordingsError,
+    error: allRecordingsError,
+    refetch: refetchAllRecordings,
   } = useGetAllRecordingsQuery();
-
+  const [classFilter, setClassFilter] = useState("");
+  const {
+    data: classRecordings,
+    isLoading: classRecordingsLoading,
+    error: classRecordingsError,
+    refetch: refetchClassRecordings,
+  } = useGetRecordingsByClassIdQuery(classFilter, {
+    skip: !classFilter,
+    refetchOnMountOrArgChange: true,
+  });
   const {
     data: classesRes,
     isLoading: classesLoading,
     isError: classesError,
   } = useGetAllClassesQuery();
-
   const [createRecordingByClassId, { isLoading: isCreating }] =
     useCreateRecordingByClassIdMutation();
-
   const [updateRecordingByClassId, { isLoading: isUpdating }] =
     useUpdateRecordingByClassIdMutation();
-
   const [deleteRecordingByClassId, { isLoading: isDeleting }] =
     useDeleteRecordingByClassIdMutation();
-
+  const [reorderRecordingsByClassId, { isLoading: isReordering }] =
+    useReorderRecordingsByClassIdMutation();
   const classes = classesRes?.classes || [];
-  const recordings = recordingsRes?.recordings || [];
-
+  const recordings = useMemo(() => classFilter
+    ? [...(Array.isArray(classRecordings) ? classRecordings : [])].sort(recordingOrder)
+    : recordingsRes?.recordings || [], [classFilter, classRecordings, recordingsRes]);
   const [modal, setModal] = useState({
     open: false,
     mode: "create",
     recordingId: null,
   });
-
   const [currentPage, setCurrentPage] = useState(1);
-
   const [form, setForm] = useState({
     classId: "",
     batchNumber: "",
@@ -95,46 +111,38 @@ const RecordingPage = () => {
     teacherName: "",
     recordingUrl: "",
     title: "",
-    description: "",
-    date: "",
-    time: "",
+    showThisWeek: false,
   });
-
   const openCreate = () =>
     setModal({ open: true, mode: "create", recordingId: null });
-
   const openEdit = (recording) =>
     setModal({
       open: true,
       mode: "edit",
       recordingId: recording?._id || null,
     });
-
   const closeModal = () =>
     setModal({ open: false, mode: "create", recordingId: null });
-
   const selectedClass = useMemo(() => {
     return classes.find((c) => String(c?._id) === String(form.classId));
   }, [classes, form.classId]);
-
   const autoInfo = useMemo(() => {
     if (!selectedClass) {
       return { batchNumber: "", grade: "", subject: "", teacherName: "" };
     }
-
     const grade =
-      selectedClass?.gradeLabel ||
       selectedClass?.gradeNo === 12 ||
-      selectedClass?.gradeId?.grade === 12
+      selectedClass?.gradeNo === 13 ||
+      selectedClass?.gradeId?.grade === 12 ||
+      selectedClass?.gradeId?.grade === 13
         ? "A/L"
-        : selectedClass?.gradeNo
+        : selectedClass?.gradeLabel || (selectedClass?.gradeNo
         ? `Grade ${selectedClass.gradeNo}`
         : selectedClass?.gradeId?.grade
         ? `Grade ${selectedClass.gradeId.grade}`
         : selectedClass?.grade
         ? `Grade ${selectedClass.grade}`
-        : "";
-
+        : "");
     const subject =
       selectedClass?.gradeId?.flowType === "al"
         ? [selectedClass?.subjectName || "", selectedClass?.streamName || ""]
@@ -145,18 +153,14 @@ const RecordingPage = () => {
           selectedClass?.streamSubjectId?.subject ||
           selectedClass?.subject ||
           "";
-
     const teacherName =
       (selectedClass?.teacherIds || [])
         .map((t) => t?.name)
         .filter(Boolean)
         .join(", ") || "No Teacher";
-
     const batchNumber = selectedClass?.batchNumber || "";
-
     return { batchNumber, grade, subject, teacherName };
   }, [selectedClass]);
-
   useEffect(() => {
     if (!form.classId) {
       setForm((p) => ({
@@ -168,7 +172,6 @@ const RecordingPage = () => {
       }));
       return;
     }
-
     setForm((p) => ({
       ...p,
       batchNumber: autoInfo.batchNumber,
@@ -183,42 +186,32 @@ const RecordingPage = () => {
     autoInfo.subject,
     autoInfo.teacherName,
   ]);
-
   useEffect(() => {
     if (!modal.open) return;
-
     if (modal.mode === "create") {
       setForm({
-        classId: "",
+        classId: classFilter,
         batchNumber: "",
         grade: "",
         subject: "",
         teacherName: "",
         recordingUrl: "",
         title: "",
-        description: "",
-        date: "",
-        time: "",
+        showThisWeek: false,
       });
     }
-  }, [modal.open, modal.mode]);
-
+  }, [modal.open, modal.mode, classFilter]);
   useEffect(() => {
     if (!modal.open || modal.mode !== "edit") return;
-
     const recording = recordings.find(
       (r) => String(r?._id) === String(modal.recordingId)
     );
-
     if (!recording) return;
-
     const classId =
       typeof recording?.classId === "object"
         ? recording?.classId?._id
         : recording?.classId || "";
-
     const batchNumber = recording?.classDetails?.batchNumber || "";
-
     const grade =
       recording?.classDetails?.grade === 12 ||
       recording?.classDetails?.grade === 13
@@ -226,7 +219,6 @@ const RecordingPage = () => {
         : recording?.classDetails?.grade
         ? `Grade ${recording.classDetails.grade}`
         : "";
-
     const subject =
       recording?.classDetails?.grade === 12 ||
       recording?.classDetails?.grade === 13
@@ -239,10 +231,8 @@ const RecordingPage = () => {
             .filter(Boolean)
             .join(" / ")
         : recording?.classDetails?.subject || "";
-
     const teacherName =
       (recording?.classDetails?.teachers || []).join(", ") || "No Teacher";
-
     setForm({
       classId,
       batchNumber,
@@ -251,24 +241,19 @@ const RecordingPage = () => {
       teacherName,
       recordingUrl: recording?.recordingUrl || "",
       title: recording?.title || "",
-      description: recording?.description || "",
-      date: recording?.date || "",
-      time: recording?.time || "",
+      showThisWeek: recording?.showThisWeek === true,
     });
   }, [modal.open, modal.mode, modal.recordingId, recordings]);
-
   const rows = useMemo(() => {
     return recordings.map((r) => {
       const className = r?.classDetails?.className || "—";
       const batchNumber = r?.classDetails?.batchNumber || "—";
-
       const grade =
         r?.classDetails?.grade === 12 || r?.classDetails?.grade === 13
           ? "A/L"
           : r?.classDetails?.grade
           ? `Grade ${r.classDetails.grade}`
           : "—";
-
       const subject =
         r?.classDetails?.grade === 12 || r?.classDetails?.grade === 13
           ? [
@@ -280,10 +265,8 @@ const RecordingPage = () => {
               .filter(Boolean)
               .join(" / ")
           : r?.classDetails?.subject || "—";
-
       const teacher =
         (r?.classDetails?.teachers || []).join(", ") || "No Teacher";
-
       return {
         _id: r._id,
         classId: typeof r?.classId === "object" ? r?.classId?._id : r?.classId,
@@ -294,109 +277,120 @@ const RecordingPage = () => {
         teacher,
         recordingUrl: r.recordingUrl || "",
         recordingName: r.title || "—",
-        description: r.description || "—",
-        date: r.date || "—",
-        time: r.time || "—",
+        showThisWeek: r.showThisWeek === true,
         raw: r,
       };
     });
   }, [recordings]);
-
   const totalRows = rows.length;
+  const listLoading = classFilter ? classRecordingsLoading : recordingsLoading;
+  const listError = classFilter ? classRecordingsError :
+    (recordingsError ? allRecordingsError || { error: "Failed to load recordings" } : null);
   const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
-
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
-
   const paginatedRows = useMemo(() => {
     const start = (currentPage - 1) * ROWS_PER_PAGE;
     const end = start + ROWS_PER_PAGE;
     return rows.slice(start, end);
   }, [rows, currentPage]);
-
   const startRecord =
     totalRows === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1;
   const endRecord =
     totalRows === 0 ? 0 : Math.min(currentPage * ROWS_PER_PAGE, totalRows);
-
   const goToFirstPage = () => setCurrentPage(1);
   const goToPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1));
   const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
   const goToLastPage = () => setCurrentPage(totalPages);
-
   const validate = () => {
     if (!form.classId) {
       alert("Please select a class");
       return false;
     }
-    if (!form.title || !form.date || !form.time || !form.recordingUrl) {
-      alert("Recording name, date, time and recording link are required");
+    if (!form.title.trim() || !form.recordingUrl.trim()) {
+      alert("Recording title and video link are required");
+      return false;
+    }
+    if (!/^https?:\/\/\S+$/i.test(form.recordingUrl.trim())) {
+      alert("Enter a valid http or https video link");
       return false;
     }
     return true;
   };
-
   const submitCreate = async () => {
     if (!validate()) return;
-
     try {
       await createRecordingByClassId({
         classId: form.classId,
         body: {
-          title: form.title,
-          date: form.date,
-          time: form.time,
-          description: form.description || "",
-          recordingUrl: form.recordingUrl || "",
+          title: form.title.trim(),
+          recordingUrl: form.recordingUrl.trim(),
+          showThisWeek: form.showThisWeek,
         },
       }).unwrap();
-
       closeModal();
-      setCurrentPage(1);
+      setCurrentPage(classFilter ? Math.ceil((rows.length + 1) / ROWS_PER_PAGE) : 1);
     } catch (e) {
-      alert(e?.data?.message || "Create failed");
+      alert(errorMessage(e, "Create failed"));
     }
   };
-
   const submitUpdate = async () => {
     if (!validate()) return;
     if (!modal.recordingId) return;
-
     try {
       await updateRecordingByClassId({
         classId: form.classId,
         recordingId: modal.recordingId,
         body: {
-          title: form.title,
-          date: form.date,
-          time: form.time,
-          description: form.description || "",
-          recordingUrl: form.recordingUrl || "",
+          title: form.title.trim(),
+          recordingUrl: form.recordingUrl.trim(),
+          showThisWeek: form.showThisWeek,
         },
       }).unwrap();
-
       closeModal();
     } catch (e) {
-      alert(e?.data?.message || "Update failed");
+      alert(errorMessage(e, "Update failed"));
     }
   };
-
   const onDelete = async (row) => {
     if (!window.confirm("Delete this recording?")) return;
-
     try {
       await deleteRecordingByClassId({
         classId: row.classId,
         recordingId: row._id,
       }).unwrap();
     } catch (e) {
-      alert(e?.data?.message || "Delete failed");
+      alert(errorMessage(e, "Delete failed"));
     }
   };
-
+  const toggleThisWeek = async (row) => {
+    try {
+      await updateRecordingByClassId({
+        classId: row.classId,
+        recordingId: row._id,
+        body: { showThisWeek: !row.showThisWeek },
+      }).unwrap();
+    } catch (e) {
+      alert(errorMessage(e, "Could not update This Week popup"));
+    }
+  };
+  const moveRecording = async (row, direction) => {
+    if (!classFilter || isReordering) return;
+    const index = rows.findIndex((entry) => String(entry._id) === String(row._id));
+    const other = index + direction;
+    if (index < 0 || other < 0 || other >= rows.length) return;
+    const recordingIds = rows.map((entry) => String(entry._id));
+    [recordingIds[index], recordingIds[other]] =
+      [recordingIds[other], recordingIds[index]];
+    try {
+      await reorderRecordingsByClassId({ classId: classFilter, recordingIds }).unwrap();
+    } catch (e) {
+      alert(errorMessage(e, "Could not change recording order"));
+      refetchClassRecordings();
+    }
+  };
   const formLoading = classesLoading || recordingsLoading;
-
   return (
     <div className="flex w-full justify-center">
       <div className="min-w-0 w-full max-w-[95vw] px-3 py-4 sm:px-6 sm:py-6">
@@ -406,10 +400,9 @@ const RecordingPage = () => {
               Recording Management
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage class recording links, details, schedules, and batch flow.
+              Manage class videos, This Week popup, and recording order.
             </p>
           </div>
-
           <div className="flex items-center gap-2">
             <button
               className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
@@ -417,7 +410,6 @@ const RecordingPage = () => {
             >
               + Add Recording
             </button>
-
             <button
               type="button"
               onClick={() => navigate("/home")}
@@ -440,7 +432,28 @@ const RecordingPage = () => {
             </button>
           </div>
         </div>
-
+        <div className="mt-5 flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4">
+          <label className="flex min-w-[240px] flex-col gap-2 text-sm font-medium text-gray-700">
+            Filter recordings by class
+            <select
+              value={classFilter}
+              disabled={classesLoading || isReordering}
+              onChange={(e) => { setClassFilter(e.target.value); setCurrentPage(1); }}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">All classes</option>
+              {classes.map((item) => (
+                <option key={item._id} value={item._id}>
+                  {item.className} · {item.subjectName || item.alSubjectName || item.subject || "Subject"}
+                  {item.batchNumber ? ` · ${item.batchNumber}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-sm text-gray-500">
+            {classFilter ? "Use Up and Down to set this class's order." : "Select a class to change its recording order."}
+          </p>
+        </div>
         {modal.open && (
           <ModalShell
             title={
@@ -461,6 +474,7 @@ const RecordingPage = () => {
                   <select
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
                     value={form.classId}
+                    disabled={modal.mode === "edit"}
                     onChange={(e) =>
                       setForm((p) => ({ ...p, classId: e.target.value }))
                     }
@@ -468,12 +482,12 @@ const RecordingPage = () => {
                     <option value="">Select Class</option>
                     {classes.map((c) => (
                       <option key={c._id} value={c._id}>
-                        {c.className} {c.batchNumber ? `- ${c.batchNumber}` : ""}
+                        {c.className} · {c.subjectName || c.alSubjectName || c.subject || "Subject"}
+                        {c.batchNumber ? ` · ${c.batchNumber}` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
-
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
@@ -485,7 +499,6 @@ const RecordingPage = () => {
                       disabled
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Grade
@@ -496,7 +509,6 @@ const RecordingPage = () => {
                       disabled
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Subject
@@ -507,7 +519,6 @@ const RecordingPage = () => {
                       disabled
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Teacher Name
@@ -519,12 +530,12 @@ const RecordingPage = () => {
                     />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Recording Link <span className="text-red-600">*</span>
+                    Video Link <span className="text-red-600">*</span>
                   </label>
                   <input
+                    type="url"
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
                     value={form.recordingUrl}
                     onChange={(e) =>
@@ -533,65 +544,28 @@ const RecordingPage = () => {
                     placeholder="https://youtube.com/... or video link"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Recording Name <span className="text-red-600">*</span>
+                    Recording Title <span className="text-red-600">*</span>
                   </label>
                   <input
                     className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
                     value={form.title}
+                    maxLength={200}
                     onChange={(e) =>
                       setForm((p) => ({ ...p, title: e.target.value }))
                     }
-                    placeholder="Enter recording name"
+                    placeholder="Enter recording title"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Description
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <label className="flex items-center gap-3 text-sm font-medium text-amber-900">
+                    <input type="checkbox" checked={form.showThisWeek}
+                      onChange={(e) => setForm((p) => ({ ...p, showThisWeek: e.target.checked }))} />
+                    Show in the This Week popup
                   </label>
-                  <textarea
-                    className="mt-2 min-h-[90px] w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, description: e.target.value }))
-                    }
-                    placeholder="Enter description"
-                  />
+                  <p className="mt-1 text-xs text-amber-800">Admin can change this at any time.</p>
                 </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Date <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.date}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, date: e.target.value }))
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Time <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-300"
-                      value={form.time}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, time: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="button"
@@ -600,7 +574,6 @@ const RecordingPage = () => {
                   >
                     Cancel
                   </button>
-
                   {modal.mode === "create" ? (
                     <button
                       type="button"
@@ -625,92 +598,86 @@ const RecordingPage = () => {
             )}
           </ModalShell>
         )}
-
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[1400px] table-fixed border-separate border-spacing-0">
+            <table className="w-full min-w-[1280px] table-fixed border-separate border-spacing-0">
               <thead>
                 <tr className="bg-[#F8FAFC] text-left text-[13px] font-medium text-gray-600">
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Class Name
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
                     Batch Number
                   </th>
                   <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
                     Grade
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[11%] border-b border-r border-gray-200 px-4 py-3">
                     Subject
                   </th>
                   <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
                     Teacher Name
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
+                  <th className="w-[9%] border-b border-r border-gray-200 px-4 py-3">
                     Recording Link
                   </th>
-                  <th className="w-[12%] border-b border-r border-gray-200 px-4 py-3">
-                    Recording Name
+                  <th className="w-[14%] border-b border-r border-gray-200 px-4 py-3">
+                    Recording Title
                   </th>
-                  <th className="w-[16%] border-b border-r border-gray-200 px-4 py-3">
-                    Description
+                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3">
+                    This Week
                   </th>
-                  <th className="w-[10%] border-b border-r border-gray-200 px-4 py-3">
-                    Date
-                  </th>
-                  <th className="w-[6%] border-b border-r border-gray-200 px-4 py-3">
-                    Time
+                  <th className="w-[8%] border-b border-r border-gray-200 px-4 py-3 text-center">
+                    Order
                   </th>
                   <th className="w-[10%] border-b border-gray-200 px-4 py-3 text-center">
                     Operation
                   </th>
                 </tr>
               </thead>
-
               <tbody className="bg-white text-sm text-gray-700">
-                {recordingsLoading ? (
+                {listLoading ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
-                ) : recordingsError ? (
+                ) : listError ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-red-600">
-                      Failed to load recordings
+                    <td colSpan={10} className="px-6 py-8 text-center text-red-600">
+                      {errorMessage(listError, "Failed to load recordings")}
+                      <button type="button" className="ml-3 underline"
+                        onClick={() => classFilter ? refetchClassRecordings() : refetchAllRecordings()}>
+                        Retry
+                      </button>
                     </td>
                   </tr>
                 ) : totalRows === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                       No recording records found
                     </td>
                   </tr>
                 ) : (
-                  paginatedRows.map((r) => (
+                  paginatedRows.map((r, index) => (
                     <tr key={r._id} className="hover:bg-gray-50/70">
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate font-medium text-gray-800">
                           {r.className}
                         </div>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.batchNumber}</div>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.grade}</div>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.subject}</div>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.teacher}</div>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         {r.recordingUrl ? (
                           <a
@@ -725,23 +692,25 @@ const RecordingPage = () => {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
                         <div className="truncate">{r.recordingName}</div>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.description}</div>
+                        <button type="button" disabled={isUpdating}
+                          onClick={() => toggleThisWeek(r)}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-40 ${r.showThisWeek ? "bg-amber-100 text-amber-900" : "bg-gray-100 text-gray-600"}`}>
+                          {r.showThisWeek ? "On" : "Off"}
+                        </button>
                       </td>
-
                       <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.date}</div>
+                        {classFilter ? <div className="flex items-center justify-center gap-1">
+                          <span className="mr-1 text-xs text-gray-500">{startRecord + index}</span>
+                          <IconButton title="Move up" onClick={() => moveRecording(r, -1)}
+                            disabled={isReordering || startRecord + index === 1}>↑</IconButton>
+                          <IconButton title="Move down" onClick={() => moveRecording(r, 1)}
+                            disabled={isReordering || startRecord + index === rows.length}>↓</IconButton>
+                        </div> : <span className="text-xs text-gray-400">Select class</span>}
                       </td>
-
-                      <td className="border-b border-r border-gray-200 px-4 py-4 align-middle">
-                        <div className="truncate">{r.time}</div>
-                      </td>
-
                       <td className="border-b border-gray-200 px-4 py-4 align-middle">
                         <div className="flex items-center justify-center gap-2">
                           <IconButton title="Edit" onClick={() => openEdit(r.raw)}>
@@ -758,7 +727,6 @@ const RecordingPage = () => {
                               <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
                             </svg>
                           </IconButton>
-
                           <IconButton
                             title="Delete"
                             onClick={() => onDelete(r)}
@@ -788,12 +756,10 @@ const RecordingPage = () => {
               </tbody>
             </table>
           </div>
-
           <div className="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {startRecord} to {endRecord} of {totalRows}
             </span>
-
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -803,7 +769,6 @@ const RecordingPage = () => {
               >
                 {"<<"}
               </button>
-
               <button
                 type="button"
                 onClick={goToPrevPage}
@@ -812,11 +777,9 @@ const RecordingPage = () => {
               >
                 {"<"}
               </button>
-
               <span className="px-2 text-sm font-medium text-gray-700">
                 Page {currentPage} of {totalPages}
               </span>
-
               <button
                 type="button"
                 onClick={goToNextPage}
@@ -825,7 +788,6 @@ const RecordingPage = () => {
               >
                 {">"}
               </button>
-
               <button
                 type="button"
                 onClick={goToLastPage}
@@ -841,5 +803,4 @@ const RecordingPage = () => {
     </div>
   );
 };
-
 export default RecordingPage;

@@ -2,6 +2,23 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8080";
 
+// Private image responses are blobs, so keep them outside RTK Query's JSON cache.
+export const fetchEnrollmentPhotoBlob = async (enrollId, kind, token, signal) => {
+  if (!["application", "packing"].includes(kind)) throw new Error("Invalid photo type");
+  const response = await fetch(
+    `${BACKEND_URL}/api/enroll/photo-content/${encodeURIComponent(enrollId)}/${kind}`,
+    {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    }
+  );
+  if (!response.ok) throw new Error(`Photo unavailable (${response.status})`);
+  const blob = await response.blob();
+  if (!["image/jpeg", "image/png"].includes(blob.type)) throw new Error("Invalid image type");
+  return blob;
+};
+
 export const enrollApi = createApi({
   reducerPath: "enrollApi",
   baseQuery: fetchBaseQuery({
