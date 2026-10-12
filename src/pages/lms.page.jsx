@@ -4,6 +4,7 @@ import {
   useGetCatalogAdminQuery, useAddCatalogVideoMutation,
   useEditCatalogVideoMutation, useArchiveCatalogVideoMutation,
   useRenameCatalogLessonMutation, useRenameCatalogSubMutation,
+  useArchiveCatalogLessonMutation, useArchiveCatalogSubMutation,
   useReorderCatalogMutation,
 } from "../api/lessonApi";
 
@@ -49,6 +50,8 @@ export default function LMSPage() {
   const [archiveVideo] = useArchiveCatalogVideoMutation();
   const [renameLesson] = useRenameCatalogLessonMutation();
   const [renameSub] = useRenameCatalogSubMutation();
+  const [archiveLesson] = useArchiveCatalogLessonMutation();
+  const [archiveSub] = useArchiveCatalogSubMutation();
   const [reorder] = useReorderCatalogMutation();
 
   const run = async (request, done, successText = "Saved") => {
@@ -190,6 +193,13 @@ export default function LMSPage() {
         <button className={small} disabled={busy || gi === lessons.length - 1} onClick={() => move("lessons", null, null, lessons, gi, 1)}>↓</button>
         <button className={small} disabled={busy} onClick={() => promptName(group.title, (title) =>
           run(renameLesson({ classId, lessonKey: group.key, title })))}>Rename</button>
+        <button className={small} disabled={busy} onClick={() => {
+          if (window.confirm(`Delete lesson "${group.title}" and all ${group.sublessons.reduce((count, item) => count + item.videos.length, 0)} videos?`)) {
+            run(archiveLesson({ classId, lessonKey: group.key }), () => {
+              if (lessonChoice === group.key) { setLessonChoice("new"); setSubChoice("new"); }
+            }, "Lesson deleted");
+          }
+        }}>Delete lesson</button>
       </div>
       {group.sublessons.map((sub, si) => <div key={sub.key} className="space-y-3 rounded-lg border bg-slate-50 p-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -200,6 +210,13 @@ export default function LMSPage() {
           <button className={small} disabled={busy || si === group.sublessons.length - 1} onClick={() => move("sublessons", group, null, group.sublessons, si, 1)}>↓</button>
           <button className={small} disabled={busy} onClick={() => promptName(sub.title, (title) =>
             run(renameSub({ classId, lessonKey: group.key, subKey: sub.key, title })))}>Rename</button>
+          <button className={small} disabled={busy} onClick={() => {
+            if (window.confirm(`Delete sub-lesson "${sub.title}" and all ${sub.videos.length} videos?`)) {
+              run(archiveSub({ classId, lessonKey: group.key, subKey: sub.key }), () => {
+                if (lessonChoice === group.key && subChoice === sub.key) setSubChoice("new");
+              }, "Sub-lesson deleted");
+            }
+          }}>Delete sub-lesson</button>
         </div>
         {sub.videos.map((video, vi) => {
           const id = String(video._id);

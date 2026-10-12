@@ -64,6 +64,14 @@ export const lessonApi = createApi({
       query: (body) => ({ url: "/catalog/admin/sublesson", method: "PATCH", body }),
       invalidatesTags: ["Catalog"],
     }),
+    archiveCatalogLesson: builder.mutation({
+      query: (body) => ({ url: "/catalog/admin/lesson", method: "DELETE", body }),
+      invalidatesTags: ["Catalog", { type: "Lesson", id: "LIST" }],
+    }),
+    archiveCatalogSub: builder.mutation({
+      query: (body) => ({ url: "/catalog/admin/sublesson", method: "DELETE", body }),
+      invalidatesTags: ["Catalog", { type: "Lesson", id: "LIST" }],
+    }),
     reorderCatalog: builder.mutation({
       query: (body) => ({ url: "/catalog/admin/order", method: "PATCH", body }),
       invalidatesTags: ["Catalog"],
@@ -136,6 +144,8 @@ export const {
   useArchiveCatalogVideoMutation,
   useRenameCatalogLessonMutation,
   useRenameCatalogSubMutation,
+  useArchiveCatalogLessonMutation,
+  useArchiveCatalogSubMutation,
   useReorderCatalogMutation,
   useGetAllLessonsQuery,
   useGetLessonsByClassIdQuery,

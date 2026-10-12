@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
-  useApproveEnrollMutation,
+  useApproveStudentEnrollMutation,
   useGetPendingEnrollRequestOptionsQuery,
   useGetPendingEnrollRequestsQuery,
-  useRejectEnrollMutation,
+  useRejectStudentEnrollMutation,
   fetchEnrollmentPhotoBlob,
 } from "../api/enrollApi";
 
@@ -47,10 +47,8 @@ const PendingRequestCard = ({
   approving,
   rejecting,
 }) => {
-  const cd = row?.classDetails || {};
-  const isAL = cd?.flowType === "al";
-  const gradeText = isAL ? "A/L" : cd?.grade ? `Grade ${cd.grade}` : "-";
-  const batchText = cd?.batchNumber || "-";
+  const enrollments = row?.enrollments || [row];
+  const barcodes = [...new Set(enrollments.map((item) => item.barcodeNumber).filter(Boolean))];
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -65,34 +63,24 @@ const PendingRequestCard = ({
         </div>
 
         <span className="rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-[10px] font-semibold text-yellow-700">
-          Pending
+          {enrollments.length} pending {enrollments.length === 1 ? "class" : "classes"}
         </span>
       </div>
 
       <div className="mt-4 space-y-2 text-xs text-gray-700">
-        <div>
-          <span className="font-semibold text-gray-800">Class:</span>{" "}
-          {cd.className || "-"}
-        </div>
-
-        <div>
-          <span className="font-semibold text-gray-800">Batch:</span>{" "}
-          {batchText}
-        </div>
-
-        <div>
-          <span className="font-semibold text-gray-800">Grade:</span>{" "}
-          {gradeText}
-        </div>
-
-        <div>
-          <span className="font-semibold text-gray-800">Subject:</span>{" "}
-          {cd.subject || "-"}
-        </div>
+        {enrollments.map((item) => {
+          const details = item.classDetails || {};
+          const grade = details.flowType === "al" ? "A/L" : details.grade ? `Grade ${details.grade}` : "-";
+          return <div key={item._id} className="rounded-lg border border-gray-100 p-2">
+            <div><span className="font-semibold text-gray-800">Class:</span> {details.className || "-"}</div>
+            <div><span className="font-semibold text-gray-800">Subject:</span> {details.subject || "-"}</div>
+            <div><span className="font-semibold text-gray-800">Batch:</span> {details.batchNumber || "-"} · {grade}</div>
+          </div>;
+        })}
 
         <div>
           <span className="font-semibold text-gray-800">Barcode:</span>{" "}
-          {row.barcodeNumber || "-"}
+          {barcodes.join(", ") || "-"}
         </div>
 
         <div>
@@ -111,8 +99,8 @@ const PendingRequestCard = ({
         </button>
         <button
           type="button"
-          onClick={() => onReject(row._id)}
-          disabled={rejecting}
+          onClick={() => onReject(row.studentId, enrollments.length)}
+          disabled={rejecting || approving}
           className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
         >
           Reject
@@ -120,8 +108,8 @@ const PendingRequestCard = ({
 
         <button
           type="button"
-          onClick={() => onApprove(row._id)}
-          disabled={approving}
+          onClick={() => onApprove(row.studentId)}
+          disabled={approving || rejecting}
           className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
         >
           Approve
@@ -132,12 +120,15 @@ const PendingRequestCard = ({
 };
 
 const RequestDetailsModal = ({ row, token, onClose }) => {
+  const enrollments = row?.enrollments || (row ? [row] : []);
+  const [activeId, setActiveId] = useState(null);
+  const activeRow = enrollments.find((item) => String(item._id) === String(activeId)) || enrollments[0];
   const [photos, setPhotos] = useState({});
   const [photoErrors, setPhotoErrors] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!row) return undefined;
+    if (!activeRow) return undefined;
     const controller = new AbortController();
     const urls = [];
     setPhotos({});
@@ -145,13 +136,13 @@ const RequestDetailsModal = ({ row, token, onClose }) => {
     setLoading(true);
 
     const available = [
-      ["application", row.applicationPhotoDriveId],
-      ["packing", row.packingCoverPhotoDriveId],
+      ["application", activeRow.applicationPhotoDriveId],
+      ["packing", activeRow.packingCoverPhotoDriveId],
     ].filter(([, fileId]) => Boolean(fileId));
 
     Promise.all(available.map(async ([kind]) => {
       try {
-        const blob = await fetchEnrollmentPhotoBlob(row._id, kind, token, controller.signal);
+        const blob = await fetchEnrollmentPhotoBlob(activeRow._id, kind, token, controller.signal);
         if (controller.signal.aborted) return;
         const url = URL.createObjectURL(blob);
         urls.push(url);
@@ -169,13 +160,13 @@ const RequestDetailsModal = ({ row, token, onClose }) => {
       controller.abort();
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [row, token]);
+  }, [activeRow, token]);
 
-  if (!row) return null;
-  const details = row.classDetails || {};
+  if (!activeRow) return null;
+  const details = activeRow.classDetails || {};
   const photoItems = [
-    ["application", "Application photo", row.applicationPhotoDriveId],
-    ["packing", "Packing cover image", row.packingCoverPhotoDriveId],
+    ["application", "Application photo", activeRow.applicationPhotoDriveId],
+    ["packing", "Packing cover image", activeRow.packingCoverPhotoDriveId],
   ];
 
   return (
@@ -185,11 +176,18 @@ const RequestDetailsModal = ({ row, token, onClose }) => {
           <h2 className="text-lg font-bold text-gray-900">Enrollment request</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg border px-3 py-1 text-gray-700">Close</button>
         </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {enrollments.map((item) => <button key={item._id} type="button"
+            onClick={() => setActiveId(item._id)}
+            className={`rounded-lg border px-3 py-2 text-sm ${String(activeRow._id) === String(item._id) ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 text-gray-700"}`}>
+            {item.classDetails?.subject || item.classDetails?.className || "Class"}
+          </button>)}
+        </div>
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-          <div><dt className="font-semibold">Name</dt><dd>{row.studentName || "-"}</dd></div>
-          <div><dt className="font-semibold">Phone number</dt><dd>{row.studentPhone || "-"}</dd></div>
-          <div><dt className="font-semibold">Barcode</dt><dd>{row.barcodeNumber || "-"}</dd></div>
-          <div><dt className="font-semibold">Examination year</dt><dd>{row.examinationYear || "-"}</dd></div>
+          <div><dt className="font-semibold">Name</dt><dd>{activeRow.studentName || "-"}</dd></div>
+          <div><dt className="font-semibold">Phone number</dt><dd>{activeRow.studentPhone || "-"}</dd></div>
+          <div><dt className="font-semibold">Barcode</dt><dd>{activeRow.barcodeNumber || "-"}</dd></div>
+          <div><dt className="font-semibold">Examination year</dt><dd>{activeRow.examinationYear || "-"}</dd></div>
           <div><dt className="font-semibold">Class</dt><dd>{details.className || "-"}</dd></div>
           <div><dt className="font-semibold">Batch</dt><dd>{details.batchNumber || "-"}</dd></div>
         </dl>
@@ -247,8 +245,8 @@ const PermissionStudents = () => {
     refetch,
   } = useGetPendingEnrollRequestsQuery(filters);
 
-  const [approveEnroll, { isLoading: approving }] = useApproveEnrollMutation();
-  const [rejectEnroll, { isLoading: rejecting }] = useRejectEnrollMutation();
+  const [approveEnroll, { isLoading: approving }] = useApproveStudentEnrollMutation();
+  const [rejectEnroll, { isLoading: rejecting }] = useRejectStudentEnrollMutation();
 
   const rows = data?.requests || [];
   const total = Number(data?.total || 0);
@@ -268,9 +266,10 @@ const PermissionStudents = () => {
   const errorText =
     error?.data?.message || error?.error || "Failed to load pending requests";
 
-  const onApprove = async (id) => {
+  const onApprove = async (studentId) => {
     try {
-      const result = await approveEnroll(id).unwrap();
+      const result = await approveEnroll(studentId).unwrap();
+      setSelectedRow(null);
       refetch();
       if (result?.sms?.status === "failed" || result?.sms?.status === "skipped") {
         alert(`Enrollment approved. SMS ${result.sms.status}: ${result.sms.reason}`);
@@ -280,12 +279,13 @@ const PermissionStudents = () => {
     }
   };
 
-  const onReject = async (id) => {
-    const ok = window.confirm("Reject this student request?");
+  const onReject = async (studentId, count) => {
+    const ok = window.confirm(`Reject all ${count} pending class requests for this student?`);
     if (!ok) return;
 
     try {
-      await rejectEnroll(id).unwrap();
+      await rejectEnroll(studentId).unwrap();
+      setSelectedRow(null);
       refetch();
     } catch (e) {
       alert(String(e?.data?.message || e?.error || "Reject failed"));

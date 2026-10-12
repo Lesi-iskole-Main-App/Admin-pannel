@@ -69,6 +69,7 @@ export const enrollApi = createApi({
     getPendingEnrollRequests: builder.query({
       query: (params = {}) => {
         const search = new URLSearchParams();
+        search.set("groupByStudent", "true");
 
         if (params.grade) search.set("grade", params.grade);
         if (params.subject) search.set("subject", params.subject);
@@ -99,6 +100,22 @@ export const enrollApi = createApi({
       ],
     }),
 
+    approveStudentEnroll: builder.mutation({
+      query: (studentId) => ({
+        url: `/approve-student/${studentId}`,
+        method: "PATCH",
+      }),
+      invalidatesTags: ["PendingEnrollRequests", "PendingEnrollRequestOptions", "Enroll"],
+    }),
+
+    rejectStudentEnroll: builder.mutation({
+      query: (studentId) => ({
+        url: `/reject-student/${studentId}`,
+        method: "PATCH",
+      }),
+      invalidatesTags: ["PendingEnrollRequests", "PendingEnrollRequestOptions", "Enroll"],
+    }),
+
     rejectEnroll: builder.mutation({
       query: (enrollId) => ({
         url: `/reject/${enrollId}`,
@@ -121,4 +138,6 @@ export const {
   useGetPendingEnrollRequestsQuery,
   useApproveEnrollMutation,
   useRejectEnrollMutation,
+  useApproveStudentEnrollMutation,
+  useRejectStudentEnrollMutation,
 } = enrollApi;

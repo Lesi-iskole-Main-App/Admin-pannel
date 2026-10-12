@@ -135,7 +135,7 @@ const SignUpPage = () => {
           >
             {isLoading ? "Signing Up..." : "Sign Up"}
           </button>
-          {/*fhjfhfh*/}
+          
           <p className="text-sm text-gray-600 mt-4 text-center">
             Have an account?{" "}
             <Link
